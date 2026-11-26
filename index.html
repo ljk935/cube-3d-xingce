@@ -1,11 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>立体图推 · 立方体拼接助手</title>
 <style>
-﻿:root {
+:root {
   --bg: #f1f3f7;
   --card: #ffffff;
   --ink: #16202f;
@@ -144,10 +144,29 @@ button { font: inherit; }
 .seg button.active { background: #fff; color: var(--accent); font-weight: 650; box-shadow: 0 1px 3px rgba(16, 26, 45, .1); }
 
 /* ---------------- 统计 ---------------- */
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.stat { background: #f7f9fd; border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }.stat { background: #f7f9fd; border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; }
 .stat b { display: block; font-size: 19px; font-weight: 700; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
 .stat span { font-size: 11px; color: var(--muted); }
+
+/* ---------------- 配色 ---------------- */
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.swatch {
+  width: 26px; height: 26px; padding: 0; border-radius: 8px;
+  border: 2px solid transparent; cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(16, 26, 45, .08);
+  transition: transform .08s, box-shadow .12s;
+}
+.swatch:hover { transform: translateY(-1px); }
+.swatch.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent); }
+.swatch.custom {
+  -webkit-appearance: none; appearance: none;
+  border: 1px dashed #c3ccda; background: #fff; overflow: hidden;
+}
+.swatch.custom::-webkit-color-swatch-wrapper { padding: 0; }
+.swatch.custom::-webkit-color-swatch { border: 0; border-radius: 5px; }
+
+.chk { display: flex; align-items: flex-start; gap: 7px; margin-top: 11px; font-size: 12px; color: var(--ink-2); cursor: pointer; }
+.chk input { margin: 2px 0 0; width: 14px; height: 14px; accent-color: var(--accent); }
 
 /* ---------------- 迷你三视图 ---------------- */
 .views-mini { display: flex; flex-direction: column; gap: 10px; }
@@ -221,6 +240,8 @@ button { font: inherit; }
 .asm-bar .row-btns { margin: 0; }
 
 .dims { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--ink-2); }
+.mode-seg { display: flex; width: 100%; margin-bottom: 11px; }
+.mode-seg button { flex: 1; padding: 6px 8px; font-size: 12px; }
 .dims label { display: inline-flex; align-items: center; gap: 6px; }
 .dims select {
   font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 8px;
@@ -242,7 +263,13 @@ button { font: inherit; }
 .pieces { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .piece { padding: 10px 11px; }
 .piece-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
-.piece-dot { width: 11px; height: 11px; border-radius: 3px; }
+.piece-dot {
+  width: 17px; height: 17px; padding: 0; border: 0; border-radius: 5px;
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+.piece-dot::-webkit-color-swatch-wrapper { padding: 0; }
+.piece-dot::-webkit-color-swatch { border: 1px solid rgba(16, 26, 45, .14); border-radius: 5px; }
+.piece-dot::-moz-color-swatch { border: 1px solid rgba(16, 26, 45, .14); border-radius: 5px; }
 .piece-name { font-weight: 650; font-size: 12.5px; }
 .piece-vol { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .piece .layers { gap: 8px; }
@@ -407,6 +434,15 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       <div class="card stats" id="stack-stats"></div>
 
       <div class="card">
+        <div class="card-h">配色 <span class="hint">点色块换颜色</span></div>
+        <div class="swatches" id="stack-colors"></div>
+        <label class="chk">
+          <input type="checkbox" id="stack-layer-color">
+          <span>按层分色（每层一种颜色，数层数更直观）</span>
+        </label>
+      </div>
+
+      <div class="card">
         <div class="card-h">三视图 <span class="hint">俯视图数字＝该列高度</span></div>
         <div class="views-mini">
           <div class="vm-block">
@@ -478,6 +514,10 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       <div class="asm-left">
         <div class="card">
           <div class="card-h">目标空间（要拼成的整体） <span class="hint" id="asm-target-vol">0 格</span></div>
+          <div class="seg mode-seg" id="seg-asm-mode">
+            <button data-mode="exact" class="active">正向 · 拼满整体</button>
+            <button data-mode="partial">逆推 · 在整体里找位置</button>
+          </div>
           <div class="dims">
             <label>宽 X
               <select id="asm-w"><option>1</option><option>2</option><option>3</option><option>4</option></select>
@@ -945,22 +985,33 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
   }
 
   /**
-   * 用若干拼块（每块各用一次，可旋转、不可翻面）恰好填满目标区域。
-   * 深度优先 + 最小下标空位强制覆盖，配位掩码剪枝。
+   * 用若干拼块摆放。
+   *   opts.partial = false（默认）：每块各用一次，恰好铺满目标区域（正向「拼合」）。
+   *   opts.partial = true：只要求每块都放得下，允许目标区域有剩余（逆推「在整体里找位置」）。
+   * 旋转允许（24 种），不翻面。
    */
   function assemble(piecesIn, targetIn, opts) {
     opts = opts || {};
     const maxNodes = opts.maxNodes || 500000;
+    const partial = !!opts.partial;
     const pieces = piecesIn.map(p => normalize(p.filter(Boolean))).filter(p => p.length > 0);
     const target = normalize(targetIn);
     if (!target.length) return { ok: false, reason: '目标区域是空的，先画出要拼成的整体形状', placements: [] };
     if (pieces.length === 0) return { ok: false, reason: '还没有画出任何拼块', placements: [] };
     const targetVol = target.length;
     const pieceVol = pieces.reduce((a, p) => a + p.length, 0);
-    if (pieceVol !== targetVol) {
+    if (pieceVol > targetVol) {
       return {
         ok: false,
-        reason: '体积对不上：拼块合计 ' + pieceVol + ' 格，目标区域 ' + targetVol + ' 格',
+        reason: '拼块合计 ' + pieceVol + ' 格，比整体的 ' + targetVol + ' 格还大，放不进去',
+        placements: []
+      };
+    }
+    if (!partial && pieceVol !== targetVol) {
+      return {
+        ok: false,
+        reason: '体积对不上：拼块合计 ' + pieceVol + ' 格，目标区域 ' + targetVol +
+          ' 格。若只是想看这些拼块能不能放进整体里，请切到「逆推 · 在整体里找位置」',
         placements: []
       };
     }
@@ -993,9 +1044,12 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       return res;
     }
 
+    const allUsed = (1 << pieces.length) - 1;
     let nodes = 0;
-    function dfs(occ, used) {
-      if (used === (1 << pieces.length) - 1) return occ === fullMask ? [] : null;
+
+    /* ---- 正向：必须恰好铺满 ---- */
+    function dfsExact(occ, used) {
+      if (used === allUsed) return occ === fullMask ? [] : null;
       if (++nodes > maxNodes) return 'LIMIT';
       let free = -1;
       for (let i = 0; i < order.length; i++) {
@@ -1017,7 +1071,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
             const pl = placement(ori, ori.idx, off);
             if (!pl) continue;
             if (pl.mask & occ) continue;
-            const sub = dfs(occ | pl.mask, used | (1 << pi));
+            const sub = dfsExact(occ | pl.mask, used | (1 << pi));
             if (sub === 'LIMIT') return 'LIMIT';
             if (sub) return [{ piece: pi, cells: pl.abs }, ...sub];
           }
@@ -1026,10 +1080,63 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       return null;
     }
 
-    const res = dfs(0n, 0);
-    if (res === 'LIMIT') return { ok: false, reason: '搜索步数超限（可能是无解，或图形太复杂）', placements: [], nodes };
-    if (!res) return { ok: false, reason: '这些拼块无法恰好拼成目标形状（可旋转，但不能翻面 / 镜像）', placements: [], nodes };
-    return { ok: true, reason: '', placements: res, nodes };
+    if (!partial) {
+      const res = dfsExact(0n, 0);
+      if (res === 'LIMIT') return { ok: false, reason: '搜索步数超限（可能是无解，或图形太复杂）', placements: [], nodes };
+      if (!res) return { ok: false, reason: '这些拼块无法恰好拼成目标形状（可旋转，但不能翻面 / 镜像）', placements: [], nodes };
+      return { ok: true, reason: '', placements: res, nodes, covered: targetVol, remaining: [] };
+    }
+
+    /* ---- 逆推：只要求每块都放得进整体，允许剩余 ---- */
+    // 预先列出每块的所有合法摆放，按“最小格下标”排序，优先靠底、靠前摆放
+    const all = [];
+    for (let pi = 0; pi < pieces.length; pi++) {
+      const seen = new Set();
+      const list = [];
+      for (const ori of oris[pi]) {
+        for (const anchor of order) {
+          const off = [anchor[0] - ori[0][0], anchor[1] - ori[0][1], anchor[2] - ori[0][2]];
+          const pl = placement(ori, ori.idx, off);
+          if (!pl) continue;
+          const k = pl.mask.toString();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          let minIdx = Infinity;
+          for (let i = 0; i < order.length; i++) if ((pl.mask >> BigInt(i)) & 1n) { minIdx = i; break; }
+          list.push({ mask: pl.mask, abs: pl.abs, minIdx });
+        }
+      }
+      list.sort((a, b) => a.minIdx - b.minIdx);
+      all.push(list);
+    }
+    for (const list of all) if (!list.length) return { ok: false, reason: '有拼块放不进这个整体（形状超出整体范围）', placements: [] };
+
+    function dfsPartial(occ, used) {
+      if (used === allUsed) return [];
+      if (++nodes > maxNodes) return 'LIMIT';
+      let pi = -1;
+      for (let i = 0; i < pieces.length; i++) if (!(used & (1 << i))) { pi = i; break; }
+      for (const pl of all[pi]) {
+        if (pl.mask & occ) continue;
+        const sub = dfsPartial(occ | pl.mask, used | (1 << pi));
+        if (sub === 'LIMIT') return 'LIMIT';
+        if (sub) return [{ piece: pi, cells: pl.abs }, ...sub];
+      }
+      return null;
+    }
+
+    const resP = dfsPartial(0n, 0);
+    if (resP === 'LIMIT') return { ok: false, reason: '搜索步数超限（可能是无解，或图形太复杂）', placements: [], nodes };
+    if (!resP) return { ok: false, reason: '这些拼块放不进这个整体里（可旋转，但不能翻面 / 镜像）', placements: [], nodes };
+
+    let usedMask = 0n;
+    for (const p of resP) for (const c of p.cells) {
+      const id = index.get(key(c[0], c[1], c[2]));
+      if (id !== undefined) usedMask |= (1n << BigInt(id));
+    }
+    const remaining = [];
+    for (let i = 0; i < order.length; i++) if (!((usedMask >> BigInt(i)) & 1n)) remaining.push(order[i]);
+    return { ok: true, reason: '', placements: resP, nodes, covered: targetVol - remaining.length, remaining };
   }
 
   /* ---------------- n×n×n 表面涂色 ---------------- */
@@ -1408,8 +1515,11 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
   /* =========================================================
      ① 堆叠数块
      ========================================================= */
+  const STACK_COLORS = ['#4f83f7', '#12a594', '#e8912b', '#8b5cf6', '#e0566a', '#5b6b7f'];
+  const LAYER_COLORS = ['#3f7bfa', '#12a594', '#e8912b', '#8b5cf6'];
+
   const stack = {
-    n: 4, maxH: 4, grid: null, viewer: null, color: '#4f83f7', mode: 'add',
+    n: 4, maxH: 4, grid: null, viewer: null, color: '#4f83f7', mode: 'add', layerColor: false,
 
     init() {
       this.grid = C.emptyGrid(this.n);
@@ -1424,6 +1534,11 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         if (!b) return;
         this.setMode(b.dataset.tool);
       });
+      $('#stack-layer-color').addEventListener('change', e => {
+        this.layerColor = e.target.checked;
+        this.render();
+      });
+      this.renderSwatches();
       $('#seg-size').addEventListener('click', e => {
         const b = e.target.closest('button[data-n]');
         if (!b) return;
@@ -1498,10 +1613,50 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
 
     cells() { return C.voxelsFromHeights(this.grid); },
 
+    /** 按当前配色设置生成渲染用的「部件」列表 */
+    parts() {
+      const cells = this.cells();
+      if (!this.layerColor) return [{ color: this.color, cells }];
+      const byLayer = new Map();
+      for (const c of cells) {
+        if (!byLayer.has(c[2])) byLayer.set(c[2], []);
+        byLayer.get(c[2]).push(c);
+      }
+      return [...byLayer.keys()].sort((a, b) => a - b).map(z => ({
+        color: LAYER_COLORS[z % LAYER_COLORS.length],
+        cells: byLayer.get(z)
+      }));
+    },
+
+    renderSwatches() {
+      const box = $('#stack-colors');
+      if (!box) return;
+      box.innerHTML = '';
+      for (const c of STACK_COLORS) {
+        const b = document.createElement('button');
+        b.className = 'swatch' + (c === this.color ? ' on' : '');
+        b.style.background = c;
+        b.title = c;
+        b.onclick = () => { this.color = c; this.renderSwatches(); this.render(); };
+        box.appendChild(b);
+      }
+      const custom = document.createElement('input');
+      custom.type = 'color';
+      custom.className = 'swatch custom';
+      custom.value = /^#[0-9a-f]{6}$/i.test(this.color) ? this.color : '#4f83f7';
+      custom.title = '自定义颜色';
+      custom.addEventListener('input', e => {
+        this.color = e.target.value;
+        $$('#stack-colors .swatch').forEach(s => s.classList.remove('on'));
+        this.render();
+      });
+      box.appendChild(custom);
+    },
+
     render() {
       this.viewer.setScene({
         n: this.n, h: this.maxH, floor: true, labels: true,
-        parts: [{ color: this.color, cells: this.cells() }]
+        parts: this.parts()
       });
       this.renderStats();
       this.renderViews();
@@ -1734,6 +1889,9 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
     target: new Set(),
     pieces: [new Set(), new Set(), new Set(), new Set()],
     pdim: 3,
+    colors: PIECE_COLORS.slice(),
+    mode: 'exact',
+    remaining: [],
     viewer: null,
     solved: false,
 
@@ -1743,6 +1901,11 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       $('#asm-w').value = this.w;
       $('#asm-d').value = this.d;
       $('#asm-h').value = this.h;
+      $('#seg-asm-mode').addEventListener('click', e => {
+        const b = e.target.closest('button[data-mode]');
+        if (!b || b.dataset.mode === this.mode) return;
+        this.setMode(b.dataset.mode);
+      });
       ['w', 'd', 'h'].forEach(k => {
         $('#asm-' + k).addEventListener('change', e => {
           const v = clamp(parseInt(e.target.value, 10) || 1, 1, 4);
@@ -1754,10 +1917,22 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       });
       $('#btn-target-fill').onclick = () => { this.fillTarget(); this.solved = false; this.renderAll(); };
       $('#btn-target-clear').onclick = () => { this.target.clear(); this.solved = false; this.renderAll(); };
-      $('#btn-asm-demo').onclick = () => this.demo();
+      $('#btn-asm-demo').onclick = () => (this.mode === 'partial' ? this.demoReverse() : this.demo());
       $('#btn-solve').onclick = () => this.solve();
       $('#btn-asm-cam').onclick = () => this.viewer.resetCam();
       this.fillTarget();
+      this.renderAll();
+    },
+
+    setMode(m) {
+      this.mode = m === 'partial' ? 'partial' : 'exact';
+      $$('#seg-asm-mode button').forEach(b => b.classList.toggle('active', b.dataset.mode === this.mode));
+      this.solved = false;
+      this.solution = null;
+      this.remaining = [];
+      $('#asm-tip').textContent = this.mode === 'partial'
+        ? '逆推：左边画出完整整体 + 几块部件，求这些部件在整体里的位置'
+        : '正向：画出要拼成的目标 + 拼块（体积要正好相等），求拼法';
       this.renderAll();
     },
 
@@ -1782,6 +1957,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
     },
 
     demo() {
+      if (this.mode !== 'exact') this.setMode('exact');
       this.w = 3; this.d = 2; this.h = 2;
       $('#asm-w').value = 3; $('#asm-d').value = 2; $('#asm-h').value = 2;
       this.fillTarget();
@@ -1790,6 +1966,22 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       this.solved = false;
       this.renderAll();
       toast('示例：4 个 L 形三连块拼 3×2×2');
+    },
+
+    demoReverse() {
+      this.setMode('partial');
+      this.w = 3; this.d = 2; this.h = 2;
+      $('#asm-w').value = 3; $('#asm-d').value = 2; $('#asm-h').value = 2;
+      this.fillTarget();
+      this.pieces = [
+        new Set(['0,0,0', '1,0,0', '0,1,0']),
+        new Set(['0,0,0', '1,0,0']),
+        new Set(),
+        new Set()
+      ];
+      this.solved = false;
+      this.renderAll();
+      toast('逆推示例：整体 3×2×2，找出两块部件的位置');
     },
 
     renderAll() {
@@ -1846,9 +2038,16 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         card.className = 'card piece';
         const head = document.createElement('div');
         head.className = 'piece-head';
-        const dot = document.createElement('span');
+        const dot = document.createElement('input');
+        dot.type = 'color';
         dot.className = 'piece-dot';
-        dot.style.background = PIECE_COLORS[i];
+        dot.value = this.colors[i];
+        dot.title = PIECE_NAMES[i] + ' 块的颜色（点击更换）';
+        dot.addEventListener('input', e => {
+          this.colors[i] = e.target.value;
+          this.renderPieces();
+          this.renderScene();
+        });
         const name = document.createElement('span');
         name.className = 'piece-name';
         name.textContent = PIECE_NAMES[i] + ' 块';
@@ -1874,7 +2073,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
               const k = x + ',' + y + ',' + z;
               const b = document.createElement('button');
               b.className = 'lcell' + (this.pieces[i].has(k) ? ' on' : '');
-              if (this.pieces[i].has(k)) b.style.background = PIECE_COLORS[i];
+              if (this.pieces[i].has(k)) b.style.background = this.colors[i];
               b.onclick = () => {
                 if (this.pieces[i].has(k)) this.pieces[i].delete(k); else this.pieces[i].add(k);
                 this.solved = false;
@@ -1905,7 +2104,10 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
 
     renderScene() {
       if (this.solved && this.solution) {
-        const parts = this.solution.map(p => ({ color: PIECE_COLORS[p.piece], cells: p.cells }));
+        const parts = this.solution.map(p => ({ color: this.colors[p.piece], cells: p.cells }));
+        if (this.mode === 'partial' && this.remaining && this.remaining.length) {
+          parts.push({ color: '#edf1f8', cells: this.remaining });
+        }
         this.viewer.setScene({ n: Math.max(this.w, this.d, 2), h: Math.max(this.h, 2), floor: false, parts });
         return;
       }
@@ -1919,26 +2121,40 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
     solve() {
       const target = [...this.target].map(k => k.split(',').map(Number));
       const pieceCells = this.pieces.map(s => [...s].map(k => k.split(',').map(Number)));
-      const res = C.assemble(pieceCells, target);
+      const partial = this.mode === 'partial';
+      const res = C.assemble(pieceCells, target, { partial });
       this.solved = false;
       this.solution = null;
+      this.remaining = [];
 
       const st = $('#asm-status');
       if (!res.ok) {
         st.className = 'status bad';
-        st.innerHTML = '<span class="big">拼不成</span>' + res.reason;
-        this.solution = null;
-        this.solved = false;
+        st.innerHTML = '<span class="big">' + (partial ? '放不进去' : '拼不成') + '</span>' + res.reason;
         this.renderScene();
         return;
       }
+
       this.solved = true;
       this.solution = res.placements;
+      this.remaining = res.remaining || [];
       st.className = 'status ok';
-      st.innerHTML = '<span class="big">可以拼成 ✓</span>' +
-        '用了 ' + res.placements.length + ' 块，共 ' + target.length + ' 格（搜索 ' + res.nodes + ' 步）';
+      const pieceCount = res.placements.length;
+      const usedVol = res.placements.reduce((a, p) => a + p.cells.length, 0);
+      if (partial) {
+        const left = this.remaining.length;
+        st.innerHTML = '<span class="big">可以放下 ✓</span>' +
+          pieceCount + ' 块共 ' + usedVol + ' 格，占整体 ' + target.length + ' 格里的 ' + res.covered + ' 格' +
+          (left > 0 ? '，还剩 ' + left + ' 格没被覆盖（灰色部分）' : '，正好铺满整体') +
+          '（搜索 ' + res.nodes + ' 步）';
+      } else {
+        st.innerHTML = '<span class="big">可以拼成 ✓</span>' +
+          '用了 ' + pieceCount + ' 块，共 ' + target.length + ' 格（搜索 ' + res.nodes + ' 步）';
+      }
       this.renderScene();
-      $('#asm-tip').textContent = '已求出一种摆法：每块用不同颜色标出（搜索 ' + res.nodes + ' 步）';
+      $('#asm-tip').textContent = partial
+        ? '灰色＝整体里没被这几块占到的位置；每块用不同颜色标出（搜索 ' + res.nodes + ' 步）'
+        : '已求出一种摆法：每块用不同颜色标出（搜索 ' + res.nodes + ' 步）';
     }
   };
 
