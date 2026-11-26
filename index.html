@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>立体图推 · 立方体拼接助手</title>
 <style>
-﻿:root {
+:root {
   --bg: #f1f3f7;
   --card: #ffffff;
   --ink: #16202f;
@@ -150,6 +150,9 @@ button { font: inherit; }
 
 /* ---------------- 配色 ---------------- */
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.color-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.color-row .swatches { flex: 1; }
+.color-label { font-size: 11.5px; color: var(--muted); width: 36px; flex: none; }
 .swatch {
   width: 26px; height: 26px; padding: 0; border-radius: 8px;
   border: 2px solid transparent; cursor: pointer;
@@ -447,8 +450,17 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       <div class="card stats" id="stack-stats"></div>
 
       <div class="card">
-        <div class="card-h">配色 <span class="hint">点色块换颜色</span></div>
-        <div class="swatches" id="stack-colors"></div>
+        <div class="card-h">配色 <span class="hint">两套颜色互不影响</span></div>
+        <div class="color-row">
+          <span class="color-label">底色</span>
+          <div class="swatches" id="stack-colors"></div>
+        </div>
+        <div class="hint" style="margin:2px 0 8px 46px">没单独上色的方块用这个颜色</div>
+        <div class="color-row">
+          <span class="color-label">画笔</span>
+          <div class="swatches" id="stack-brush"></div>
+        </div>
+        <div class="hint" style="margin:2px 0 0 46px">「上色」时用的颜色，改它不会动已画好的块</div>
         <div class="paint-row" id="paint-layer-row" hidden>
           <label class="hint" for="paint-layer">上色层</label>
           <select id="paint-layer">
@@ -457,6 +469,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
             <option value="2">第 2 层</option>
             <option value="3">第 3 层</option>
             <option value="4">第 4 层</option>
+            <option value="col">整列（这一列全部）</option>
           </select>
         </div>
         <label class="chk">
@@ -1554,7 +1567,8 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
   const LAYER_COLORS = ['#3f7bfa', '#12a594', '#e8912b', '#8b5cf6'];
 
   const stack = {
-    n: 4, maxH: 4, grid: null, viewer: null, color: '#4f83f7', mode: 'add', layerColor: false,
+    n: 4, maxH: 4, grid: null, viewer: null, baseColor: '#4f83f7', brushColor: '#e8912b',
+    mode: 'add', layerColor: false,
     cubeColors: new Map(), paintLayer: 'top',
 
     init() {
@@ -1576,7 +1590,8 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         this.render();
       });
       $('#paint-layer').addEventListener('change', e => {
-        this.paintLayer = e.target.value === 'top' ? 'top' : parseInt(e.target.value, 10);
+        const v = e.target.value;
+        this.paintLayer = (v === 'top' || v === 'col') ? v : parseInt(v, 10);
       });
       $('#btn-clear-colors').onclick = () => {
         this.cubeColors.clear();
@@ -1615,7 +1630,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         tip.textContent = this.mode === 'remove'
           ? '「移除」：点格子拿掉一块 · 切回「放置」叠加'
           : this.mode === 'paint'
-            ? '「上色」：选好颜色和上色层，点格子给那一块换色'
+            ? '「上色」：用画笔色点方块换色（选好上色层）· 不影响其它块'
             : '「放置」：点格子叠一块 · 拖动旋转 · 双指 / 滚轮缩放';
       }
     },
@@ -1648,15 +1663,20 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       this.render();
     },
 
-    /** 上色：给指定层（或顶层）那一块换颜色 */
+    /** 上色：给指定层（或顶层 / 整列）换颜色，只用「画笔色」，不动其它方块 */
     paintAt(x, y) {
       const g = this.grid;
       if (!g[y] || g[y][x] === undefined) return;
       const h = g[y][x];
       if (!h) { toast('这一列还没有方块'); return; }
+      if (this.paintLayer === 'col') {
+        for (let z = 0; z < h; z++) this.cubeColors.set(x + ',' + y + ',' + z, this.brushColor);
+        this.render();
+        return;
+      }
       const z = this.paintLayer === 'top' ? h - 1 : this.paintLayer - 1;
       if (z >= h) { toast('这一列只有 ' + h + ' 层，第 ' + (z + 1) + ' 层还是空的'); return; }
-      this.cubeColors.set(x + ',' + y + ',' + z, this.color);
+      this.cubeColors.set(x + ',' + y + ',' + z, this.brushColor);
       this.render();
     },
 
@@ -1677,7 +1697,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
 
     cells() { return C.voxelsFromHeights(this.grid); },
 
-    /** 按颜色分组生成渲染部件：单块颜色 > 按层分色 > 主题色 */
+    /** 按颜色分组生成渲染部件：单块颜色 > 按层分色 > 底色 */
     parts() {
       const groups = new Map();
       const push = (color, c) => {
@@ -1688,34 +1708,44 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         const custom = this.cubeColors.get(c[0] + ',' + c[1] + ',' + c[2]);
         if (custom) push(custom, c);
         else if (this.layerColor) push(LAYER_COLORS[c[2] % LAYER_COLORS.length], c);
-        else push(this.color, c);
+        else push(this.baseColor, c);
       }
       return [...groups.entries()].map(([color, cells]) => ({ color, cells }));
     },
 
-    renderSwatches() {
-      const box = $('#stack-colors');
+    /** 渲染一条色块行；get/set 决定它控制底色还是画笔色 */
+    renderSwatchRow(boxId, current, apply) {
+      const box = $('#' + boxId);
       if (!box) return;
       box.innerHTML = '';
       for (const c of STACK_COLORS) {
         const b = document.createElement('button');
-        b.className = 'swatch' + (c === this.color ? ' on' : '');
+        b.className = 'swatch' + (c === current() ? ' on' : '');
         b.style.background = c;
         b.title = c;
-        b.onclick = () => { this.color = c; this.renderSwatches(); this.render(); };
+        b.onclick = () => { apply(c); };
         box.appendChild(b);
       }
       const custom = document.createElement('input');
       custom.type = 'color';
       custom.className = 'swatch custom';
-      custom.value = /^#[0-9a-f]{6}$/i.test(this.color) ? this.color : '#4f83f7';
+      custom.value = /^#[0-9a-f]{6}$/i.test(current()) ? current() : '#4f83f7';
       custom.title = '自定义颜色';
-      custom.addEventListener('input', e => {
-        this.color = e.target.value;
-        $$('#stack-colors .swatch').forEach(s => s.classList.remove('on'));
+      custom.addEventListener('input', e => apply(e.target.value));
+      box.appendChild(custom);
+    },
+
+    renderSwatches() {
+      this.renderSwatchRow('stack-colors', () => this.baseColor, c => {
+        this.baseColor = c;
+        this.renderSwatches();
         this.render();
       });
-      box.appendChild(custom);
+      this.renderSwatchRow('stack-brush', () => this.brushColor, c => {
+        this.brushColor = c;
+        this.renderSwatches();
+        if (this.mode === 'paint') toast('画笔颜色已换，点方块上色');
+      });
     },
 
     render() {
