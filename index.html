@@ -1,0 +1,2122 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>立体图推 · 立方体拼接助手</title>
+<style>
+:root {
+  --bg: #f1f3f7;
+  --card: #ffffff;
+  --ink: #16202f;
+  --ink-2: #3d4a5c;
+  --muted: #7a8699;
+  --line: #e3e7ef;
+  --line-2: #eef1f6;
+  --accent: #2f6fed;
+  --accent-2: #e9f0ff;
+  --ok: #0f9b6c;
+  --ok-2: #e6f7f0;
+  --warn: #c2551f;
+  --warn-2: #fdf0e7;
+  --radius: 13px;
+  --shadow: 0 1px 2px rgba(16, 26, 45, .04), 0 8px 24px -18px rgba(16, 26, 45, .35);
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font: 13.5px/1.55 "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------- 顶栏 ---------------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 10px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  z-index: 5;
+}
+
+.brand { display: flex; align-items: center; gap: 11px; }
+
+.logo {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #3f7bfa, #1f56d0);
+  color: #fff; font-size: 19px;
+  box-shadow: 0 4px 10px -4px rgba(47, 111, 237, .8);
+}
+
+.brand h1 { margin: 0; font-size: 15.5px; font-weight: 650; letter-spacing: .2px; }
+.brand p { margin: 1px 0 0; font-size: 11.5px; color: var(--muted); }
+
+.tabs { display: flex; gap: 4px; padding: 3px; background: var(--bg); border-radius: 11px; flex-wrap: wrap; }
+
+.tab {
+  appearance: none; border: 0; background: transparent; color: var(--ink-2);
+  font: inherit; font-size: 13px; padding: 6px 13px; border-radius: 8px; cursor: pointer;
+  transition: background .16s, color .16s, box-shadow .16s;
+}
+.tab:hover { background: #e9edf5; }
+.tab.active { background: #fff; color: var(--accent); font-weight: 650; box-shadow: 0 1px 3px rgba(16, 26, 45, .12); }
+
+main { position: relative; flex: 1; min-height: 0; }
+
+.panel { position: absolute; inset: 0; display: none; }
+.panel.active { display: grid; }
+
+/* ---------------- 通用组件 ---------------- */
+.stage { position: relative; min-width: 0; min-height: 0; background: #fff; overflow: hidden; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+.stage-tip {
+  position: absolute; left: 14px; bottom: 12px; right: 14px;
+  font-size: 11.5px; color: var(--muted); pointer-events: none;
+  display: flex; gap: 10px; align-items: center;
+}
+
+.stage-tools { position: absolute; right: 12px; top: 12px; display: flex; gap: 8px; }
+
+.side {
+  overflow-y: auto; padding: 13px; display: flex; flex-direction: column; gap: 11px;
+  border-left: 1px solid var(--line); background: #fafbfd;
+}
+
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 13px; box-shadow: var(--shadow);
+}
+
+.card-h {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  font-size: 12.5px; font-weight: 650; color: var(--ink-2); margin-bottom: 9px;
+}
+.card-h .hint { font-weight: 400; font-size: 11px; color: var(--muted); }
+
+.hint { color: var(--muted); font-size: 11.5px; }
+.mono { font-variant-numeric: tabular-nums; }
+
+button { font: inherit; }
+
+.primary, .ghost {
+  appearance: none; cursor: pointer; border-radius: 9px; padding: 7px 13px;
+  font-size: 12.5px; transition: background .15s, border-color .15s, color .15s, transform .05s;
+  border: 1px solid transparent;
+}
+.primary { background: var(--accent); color: #fff; font-weight: 600; box-shadow: 0 4px 12px -6px rgba(47, 111, 237, .9); }
+.primary:hover { background: #2560d8; }
+.primary:active { transform: translateY(1px); }
+.ghost { background: #fff; border-color: var(--line); color: var(--ink-2); }
+.ghost:hover { background: #f4f7fc; border-color: #cfd8e6; }
+.wide { width: 100%; margin-top: 10px; }
+
+.row-btns { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 9px; }
+
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--bg); border-radius: 9px; }
+.seg button {
+  appearance: none; border: 0; background: transparent; color: var(--ink-2);
+  font-size: 12px; padding: 4px 11px; border-radius: 7px; cursor: pointer;
+}
+.seg button.active { background: #fff; color: var(--accent); font-weight: 650; box-shadow: 0 1px 3px rgba(16, 26, 45, .1); }
+
+/* ---------------- 统计 ---------------- */
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.stat { background: #f7f9fd; border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; }
+.stat b { display: block; font-size: 19px; font-weight: 700; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 11px; color: var(--muted); }
+
+/* ---------------- 迷你三视图 ---------------- */
+.views-mini { display: flex; flex-direction: column; gap: 10px; }
+.vm-block { display: flex; flex-direction: column; gap: 5px; }
+.vm-label { font-size: 11px; color: var(--muted); }
+
+.mini-grid { display: inline-grid; gap: 2px; }
+.mg-cell {
+  width: 15px; height: 15px; border-radius: 3px;
+  background: #f0f3f8; border: 1px solid #e6eaf1;
+}
+.mg-cell.on { background: #7fa5f5; border-color: #6f99f2; }
+.mg-cell.num {
+  width: 25px; height: 25px; display: grid; place-items: center;
+  font-size: 11.5px; color: var(--muted); background: #fff; border: 1px solid var(--line);
+}
+.mg-cell.num.on { color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 650; }
+
+/* ---------------- 三视图工作台 ---------------- */
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 358px; min-height: 0; }
+.workspace > .card.grow { margin: 13px; overflow: auto; display: flex; flex-direction: column; }
+
+.views-board {
+  display: grid; grid-template-columns: auto auto; gap: 26px 34px;
+  justify-content: center; align-content: start;
+  padding: 16px 8px 22px;
+}
+.vb-col { display: flex; flex-direction: column; gap: 26px; }
+.vb-item { display: flex; flex-direction: column; gap: 7px; align-items: center; }
+.vb-label { font-size: 11.5px; color: var(--muted); letter-spacing: .3px; text-align: center; }
+
+.edit-grid { display: inline-grid; gap: 3px; }
+.eg-cell {
+  width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+  background: #f4f6fa; border: 1px solid #e6eaf2; transition: background .1s, border-color .1s;
+}
+.eg-cell:hover { border-color: #b9c8e2; background: #eef2fa; }
+.eg-cell.on { background: #8baff7; border-color: #6f99f2; }
+.eg-cell.on:hover { background: #7aa2f5; }
+.eg-cell.tall { background: var(--accent); border-color: #2059c9; }
+
+/* ---------------- 结果卡 ---------------- */
+.big-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.big-stat { border-radius: 11px; padding: 9px 11px; background: #f7f9fd; border: 1px solid var(--line-2); }
+.big-stat b { display: block; font-size: 26px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.big-stat.min b { color: var(--accent); }
+.big-stat.max b { color: #7a4fd8; }
+.big-stat span { font-size: 11px; color: var(--muted); }
+
+.status { font-size: 12px; padding: 8px 10px; border-radius: 9px; background: #f7f9fd; border: 1px solid var(--line-2); }
+.status.ok { background: var(--ok-2); border-color: #c6eadd; color: #0a6a4a; }
+.status.bad { background: var(--warn-2); border-color: #f6d9c6; color: #8f3c12; }
+.status .big { display: block; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+
+.reason-list { margin: 7px 0 0; padding-left: 16px; color: var(--warn); font-size: 11.5px; }
+.reason-list li { margin: 2px 0; }
+
+.formula { margin-top: 9px; font-size: 11.5px; color: var(--muted); line-height: 1.7; }
+.formula b { color: var(--ink-2); font-weight: 600; }
+
+.mini-stage { position: relative; height: 190px; margin-top: 9px; background: #fbfcfe; border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden; }
+.mini-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* ---------------- 拼接 ---------------- */
+.panel[data-panel="assemble"] { grid-template-columns: minmax(0, 1fr); }
+.asm { display: grid; grid-template-columns: minmax(330px, 0.95fr) minmax(0, 1.1fr); min-height: 0; }
+.asm-left { overflow-y: auto; padding: 13px; display: flex; flex-direction: column; gap: 11px; border-right: 1px solid var(--line); background: #fafbfd; }
+.asm-right { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+.asm-bar { margin: 0 13px 13px; display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
+.asm-bar .status { flex: 1; min-width: 180px; }
+.asm-bar .row-btns { margin: 0; }
+
+.dims { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--ink-2); }
+.dims label { display: inline-flex; align-items: center; gap: 6px; }
+.dims select {
+  font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+}
+
+.layers { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 11px; }
+.layer { display: flex; flex-direction: column; gap: 5px; }
+.layer-cap { font-size: 10.5px; color: var(--muted); letter-spacing: .2px; }
+.lgrid { display: grid; gap: 3px; }
+.lcell {
+  width: 22px; height: 22px; padding: 0; border-radius: 5px; cursor: pointer;
+  background: #f2f5fa; border: 1px solid #e4e9f2; transition: background .1s, border-color .1s;
+}
+.lcell:hover { border-color: #b9c8e2; }
+.lcell.on { background: var(--accent); border-color: #2059c9; }
+.lcell.on:hover { background: #2560d8; }
+
+.pieces { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.piece { padding: 10px 11px; }
+.piece-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+.piece-dot { width: 11px; height: 11px; border-radius: 3px; }
+.piece-name { font-weight: 650; font-size: 12.5px; }
+.piece-vol { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.piece .layers { gap: 8px; }
+.piece .lcell { width: 17px; height: 17px; border-radius: 4px; }
+.piece .layer-cap { font-size: 9.5px; }
+.piece-foot { display: flex; justify-content: flex-end; margin-top: 7px; }
+.piece-foot button { padding: 3px 9px; font-size: 11px; border-radius: 7px; }
+
+/* ---------------- 展开图 ---------------- */
+.panel[data-panel="net"] { grid-template-columns: minmax(0, 1fr) 348px; }
+.net-wrap { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; overflow: auto; }
+.net-grid { display: grid; gap: 4px; }
+.net-cell {
+  width: 46px; height: 46px; border-radius: 8px; cursor: pointer;
+  background: #f5f7fb; border: 1px solid #e7ebf3; color: var(--muted);
+  display: grid; place-items: center; font-size: 13px; font-weight: 600;
+  transition: background .12s, border-color .12s, transform .08s;
+}
+.net-cell:hover { border-color: #b9c8e2; transform: translateY(-1px); }
+.net-cell.on { color: #fff; border-color: transparent; }
+.net-cell.picked { outline: 2px solid #16202f; outline-offset: 2px; }
+.net-cell.ghost { background: #fbfcfe; }
+
+.net-pair { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 5px 0; }
+.net-pair .chip {
+  min-width: 24px; height: 24px; padding: 0 6px; border-radius: 6px;
+  display: inline-grid; place-items: center; color: #fff; font-weight: 650; font-size: 12px;
+}
+.net-pair .link { color: var(--muted); }
+
+/* ---------------- 涂色 ---------------- */
+.panel[data-panel="paint"] { grid-template-columns: minmax(0, 1fr); }
+.paint-wrap { overflow-y: auto; padding: 20px; display: flex; justify-content: center; align-items: flex-start; }
+.paint-card { width: min(860px, 100%); display: flex; flex-direction: column; gap: 14px; }
+
+.stepper { display: inline-flex; align-items: center; gap: 10px; }
+.stepper button {
+  width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--line); background: #fff;
+  font-size: 16px; line-height: 1; cursor: pointer; color: var(--ink-2);
+}
+.stepper button:hover { background: #f4f7fc; }
+.stepper .val { font-size: 22px; font-weight: 700; min-width: 32px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.paint-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.paint-cell { border-radius: 12px; padding: 12px; border: 1px solid var(--line-2); background: #f8fafd; }
+.paint-cell .k { font-size: 11.5px; color: var(--muted); }
+.paint-cell .v { font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.paint-cell .f { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.paint-cell.c3 { background: #eef4ff; border-color: #dbe7ff; }
+.paint-cell.c3 .v { color: #1d4ed8; }
+.paint-cell.c2 { background: #eefaf4; border-color: #d8f0e5; }
+.paint-cell.c2 .v { color: #0b7a55; }
+.paint-cell.c1 { background: #fff8ec; border-color: #f7ecd6; }
+.paint-cell.c1 .v { color: #b45309; }
+.paint-cell.c0 { background: #f6f1fd; border-color: #ece2fa; }
+.paint-cell.c0 .v { color: #6d28d9; }
+
+table.simple { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.simple th, table.simple td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line-2); }
+table.simple th { color: var(--muted); font-weight: 600; font-size: 11.5px; }
+table.simple td.mono { font-variant-numeric: tabular-nums; }
+
+/* ---------------- toast ---------------- */
+.toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 16px);
+  background: #16202f; color: #fff; font-size: 12.5px; padding: 9px 16px; border-radius: 10px;
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50;
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .6);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------------- 响应式 ---------------- */
+@media (max-width: 1080px) {
+  .asm { grid-template-columns: minmax(0, 1fr); }
+  .asm-left { border-right: 0; border-bottom: 1px solid var(--line); }
+  .asm-right { min-height: 420px; }
+}
+
+@media (max-width: 900px) {
+  body { height: auto; overflow: auto; }
+  main { flex: none; }
+  .panel, .panel.active { position: static; display: block; }
+  .panel:not(.active) { display: none; }
+  .panel.active { display: flex; flex-direction: column; }
+  .tab { padding: 6px 10px; font-size: 12.5px; }
+  .brand p { display: none; }
+  .stage { height: 380px; flex: none; border-right: 0; border-bottom: 1px solid var(--line); }
+  .side { border-left: 0; }
+  .workspace { display: flex; flex-direction: column; }
+  .workspace > .card.grow { margin: 10px; }
+  .views-board { gap: 18px; }
+  .asm { display: flex; flex-direction: column; }
+  .asm-right { min-height: 460px; }
+  .paint-grid { grid-template-columns: 1fr 1fr; }
+  .pieces { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .piece { padding: 8px 9px; }
+  .piece .lcell { width: 15px; height: 15px; }
+  .piece .layer-cap { font-size: 9px; }
+  .net-cell { width: 40px; height: 40px; }
+}
+
+@media (max-width: 560px) {
+  .pieces { grid-template-columns: 1fr; }
+  .views-board { grid-template-columns: auto; }
+  .tab { padding: 5px 8px; font-size: 12px; }
+}
+
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">▦</div>
+    <div>
+      <h1>立体图推 · 立方体拼接助手</h1>
+      <p>立方体堆叠的个数统计、三视图互推、多块拼接判定、展开图折叠、表面涂色计数</p>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="stack">① 堆叠数块</button>
+    <button class="tab" data-tab="views">② 三视图互推</button>
+    <button class="tab" data-tab="assemble">③ 拼接拼合</button>
+    <button class="tab" data-tab="net">④ 展开图折叠</button>
+    <button class="tab" data-tab="paint">⑤ 涂色计数</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ============ ① 堆叠数块 ============ -->
+  <section class="panel active" data-panel="stack" style="grid-template-columns:minmax(0,1fr) 344px">
+    <div class="stage">
+      <canvas id="cv-stack"></canvas>
+      <div class="stage-tip">左键点击放方块 · 右键 / Shift+左键 拿掉 · 拖动旋转 · 滚轮缩放</div>
+      <div class="stage-tools">
+        <button class="ghost" id="btn-reset-cam">重置视角</button>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="card">
+        <div class="card-h">底面网格 <span class="hint">俯视时前排在下</span></div>
+        <div class="seg" id="seg-size">
+          <button data-n="3">3×3</button>
+          <button data-n="4" class="active">4×4</button>
+          <button data-n="5">5×5</button>
+        </div>
+        <div class="row-btns">
+          <button class="ghost" id="btn-clear">清空</button>
+          <button class="ghost" id="btn-demo1">示例 · 阶梯</button>
+          <button class="ghost" id="btn-demo2">示例 · 遮挡</button>
+        </div>
+      </div>
+
+      <div class="card stats" id="stack-stats"></div>
+
+      <div class="card">
+        <div class="card-h">三视图 <span class="hint">俯视图数字＝该列高度</span></div>
+        <div class="views-mini">
+          <div class="vm-block">
+            <span class="vm-label">主视图（从正面看）</span>
+            <div class="mini-grid" id="mg-front"></div>
+          </div>
+          <div class="vm-block">
+            <span class="vm-label">左视图（从左边看）</span>
+            <div class="mini-grid" id="mg-side"></div>
+          </div>
+          <div class="vm-block">
+            <span class="vm-label">俯视图（从上面看）</span>
+            <div class="mini-grid" id="mg-top"></div>
+          </div>
+        </div>
+        <button class="primary wide" id="btn-to-views">用这组三视图求「最少 / 最多」→</button>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ============ ② 三视图互推 ============ -->
+  <section class="panel" data-panel="views">
+    <div class="workspace">
+      <div class="card grow">
+        <div class="card-h">点格子画三视图 <span class="hint">点同一高度第二次 = 降低一格</span></div>
+        <div class="views-board">
+          <div class="vb-col">
+            <div class="vb-item">
+              <div class="vb-label">主视图（正面，左→右 = 第 1…N 列）</div>
+              <div class="edit-grid" id="ed-front"></div>
+            </div>
+            <div class="vb-item">
+              <div class="vb-label">俯视图（上面，上＝后排，下＝前排）</div>
+              <div class="edit-grid" id="ed-top"></div>
+            </div>
+          </div>
+          <div class="vb-item">
+            <div class="vb-label">左视图（左面，左→右 = 第 1…N 排）</div>
+            <div class="edit-grid" id="ed-side"></div>
+          </div>
+        </div>
+        <div class="row-btns">
+          <div class="seg" id="seg-vsize">
+            <button data-n="3" class="active">3×3</button>
+            <button data-n="4">4×4</button>
+            <button data-n="5">5×5</button>
+          </div>
+          <button class="ghost" id="btn-vclear">清空</button>
+          <button class="ghost" id="btn-vdemo">载入示例</button>
+        </div>
+      </div>
+      <aside class="side">
+        <div class="card" id="views-result"></div>
+        <div class="card">
+          <div class="card-h">摆法预览 <span class="hint">同样满足这组三视图</span></div>
+          <div class="seg" id="seg-preview">
+            <button data-p="min" class="active">最少摆法</button>
+            <button data-p="max">最多摆法</button>
+          </div>
+          <div class="mini-stage"><canvas id="cv-preview"></canvas></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ ③ 拼接拼合 ============ -->
+  <section class="panel" data-panel="assemble">
+    <div class="asm">
+      <div class="asm-left">
+        <div class="card">
+          <div class="card-h">目标空间（要拼成的整体） <span class="hint" id="asm-target-vol">0 格</span></div>
+          <div class="dims">
+            <label>宽 X
+              <select id="asm-w"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+            </label>
+            <label>深 Y
+              <select id="asm-d"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+            </label>
+            <label>高 Z
+              <select id="asm-h"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+            </label>
+          </div>
+          <div class="layers" id="asm-target"></div>
+          <div class="row-btns">
+            <button class="ghost" id="btn-target-fill">填满长方体</button>
+            <button class="ghost" id="btn-target-clear">清空</button>
+            <button class="ghost" id="btn-asm-demo">载入示例</button>
+          </div>
+        </div>
+        <div class="pieces" id="asm-pieces"></div>
+      </div>
+      <div class="asm-right">
+        <div class="stage">
+          <canvas id="cv-asm"></canvas>
+          <div class="stage-tip" id="asm-tip">左侧画出目标与拼块，点「开始求解」</div>
+          <div class="stage-tools"><button class="ghost" id="btn-asm-cam">重置视角</button></div>
+        </div>
+        <div class="asm-bar">
+          <div class="status" id="asm-status">等待求解</div>
+          <div class="row-btns">
+            <button class="primary" id="btn-solve">开始求解</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ④ 展开图折叠 ============ -->
+  <section class="panel" data-panel="net">
+    <div class="stage">
+      <div class="net-wrap"><div class="net-grid" id="net-grid"></div></div>
+      <div class="stage-tip">点亮 6 个边相连的格子组成展开图；「查询」模式下点两个格子可查相邻 / 相对</div>
+    </div>
+    <aside class="side">
+      <div class="card" id="net-result"></div>
+      <div class="card">
+        <div class="card-h">两面关系查询</div>
+        <div id="net-query" class="hint">先点「查询两面关系」，再依次点两个已点亮的格子</div>
+        <button class="ghost wide" id="btn-query">查询两面关系</button>
+      </div>
+      <div class="card">
+        <div class="card-h">快速载入</div>
+        <div class="row-btns">
+          <button class="ghost" data-net="cross">十字</button>
+          <button class="ghost" data-net="t141">1-4-1</button>
+          <button class="ghost" data-net="t231">2-3-1</button>
+          <button class="ghost" data-net="bad">错误示例</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ============ ⑤ 涂色计数 ============ -->
+  <section class="panel" data-panel="paint">
+    <div class="paint-wrap">
+      <div class="card paint-card">
+        <div class="card-h">大正方体表面涂色 <span class="hint">切成 n×n×n 个小正方体</span></div>
+        <div class="dims" style="justify-content:space-between">
+          <div class="stepper">
+            <button id="paint-minus">−</button>
+            <span class="val" id="paint-n">4</span>
+            <button id="paint-plus">+</button>
+          </div>
+          <span class="hint">棱长 n 从 1 到 12</span>
+        </div>
+        <div class="paint-grid" id="paint-grid"></div>
+        <div class="card" style="box-shadow:none;background:#fbfcfe">
+          <div class="card-h">通式与检查</div>
+          <table class="simple">
+            <thead><tr><th>位置</th><th>涂色面数</th><th>通式</th><th>当前个数</th></tr></thead>
+            <tbody id="paint-table"></tbody>
+          </table>
+          <div class="formula" id="paint-check"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   core.js —— 纯算法层（不依赖 DOM，可在 Node 中直接测试）
+   数据约定：
+     高度图 h[y][x]  (y 向里/向后，x 向右，z 向上)，值 = 该列叠了几块
+     三视图：F[x] 主视图（从正面看，第 x 列的最高高度）
+             S[y] 左视图（从左边看，第 y 排的最高高度）
+             T[x][y] 俯视图（该列是否至少有一块）
+   ========================================================= */
+(function (global) {
+  'use strict';
+
+  const key = (x, y, z) => x + ',' + y + ',' + z;
+
+  function emptyGrid(n) {
+    const g = [];
+    for (let y = 0; y < n; y++) g.push(new Array(n).fill(0));
+    return g;
+  }
+  function cloneGrid(g) { return g.map(r => r.slice()); }
+
+  function voxelsFromHeights(h) {
+    const n = h.length, out = [];
+    for (let y = 0; y < n; y++)
+      for (let x = 0; x < n; x++)
+        for (let z = 0; z < h[y][x]; z++) out.push([x, y, z]);
+    return out;
+  }
+
+  function heightsFromVoxels(cells, n) {
+    const h = emptyGrid(n);
+    for (const [x, y, z] of cells) {
+      if (x >= 0 && x < n && y >= 0 && y < n && z >= 0) h[y][x] = Math.max(h[y][x], z + 1);
+    }
+    return h;
+  }
+
+  function threeViews(h) {
+    const n = h.length;
+    const F = new Array(n).fill(0), S = new Array(n).fill(0);
+    const T = [];
+    for (let x = 0; x < n; x++) T.push(new Array(n).fill(false));
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const v = h[y][x];
+        if (v > 0) {
+          T[x][y] = true;
+          if (v > F[x]) F[x] = v;
+          if (v > S[y]) S[y] = v;
+        }
+      }
+    }
+    return { F, S, T };
+  }
+
+  const DIRS6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+
+  function voxelSet(cells) {
+    const s = new Set();
+    for (const c of cells) s.add(key(c[0], c[1], c[2]));
+    return s;
+  }
+
+  /** 表面积（以“单位正方形面”计数） */
+  function surfaceArea(cells) {
+    const s = voxelSet(cells);
+    let area = 0;
+    for (const [x, y, z] of cells)
+      for (const [dx, dy, dz] of DIRS6)
+        if (!s.has(key(x + dx, y + dy, z + dz))) area++;
+    return area;
+  }
+
+  /** 六面全部被别的方块挡住的块（“看不见的方块”的一种严格定义） */
+  function fullyHiddenCount(cells) {
+    const s = voxelSet(cells);
+    let cnt = 0;
+    for (const [x, y, z] of cells) {
+      let all = true;
+      for (const [dx, dy, dz] of DIRS6)
+        if (!s.has(key(x + dx, y + dy, z + dz))) { all = false; break; }
+      if (all) cnt++;
+    }
+    return cnt;
+  }
+
+  /** 该列顶部以下、从正上方看不见的方块数 */
+  function coveredByTop(cells) {
+    const s = voxelSet(cells);
+    let cnt = 0;
+    for (const [x, y, z] of cells) if (s.has(key(x, y, z + 1))) cnt++;
+    return cnt;
+  }
+
+  /* ---------------- 三视图 → 最少 / 最多 ---------------- */
+  /**
+   * 最多：俯视图每个格子的高度上限 = min(F[x], S[y])，全部取满一定可行。
+   *
+   * 最少（精确解）：
+   *   设格子 (x,y) 的高度为 h。任何高度既不是 F[x] 也不是 S[y] 的格子，
+   *   对“某行最高 = F[x]、某列最高 = S[y]”毫无贡献，只会多花方块，
+   *   所以最优解中每个格子的高度只可能是 1、F[x] 或 S[y]。
+   *   于是：
+   *     · 每个 F[x]≥2 的行必须有一格取 F[x]（“行代表格”），且该格需 S[y] ≥ F[x]
+   *     · 每个 S[y]≥2 的列必须有一格取 S[y]（“列代表格”），且该格需 F[x] ≥ S[y]
+   *     · 一格同时充当两种代表格 ⇔ F[x] = S[y]（此时只付一份高度）
+   *   基准成本 |T| + Σ(F[x]-1) + Σ(S[y]-1)，再减去“共用代表格”的节省。
+   *   节省量等价于在 {F[x]=S[y] 且 T[x][y]} 的二分图上做最大权匹配，权 = F[x]-1。
+   *   这个下界可用上述规则直接构造出来，因而就是最优解。
+   */
+  function solveViews(N, F, S, T) {
+    const problems = [];
+    for (let x = 0; x < N; x++)
+      for (let y = 0; y < N; y++)
+        if (T[x][y] && (F[x] === 0 || S[y] === 0))
+          problems.push('俯视图第 ' + (y + 1) + ' 排第 ' + (x + 1) + ' 列有方块，但主视图 / 左视图对应位置是空的');
+    for (let x = 0; x < N; x++) {
+      if (F[x] === 0) continue;
+      let ok = false;
+      for (let y = 0; y < N; y++) if (T[x][y] && S[y] >= F[x]) { ok = true; break; }
+      if (!ok) problems.push('主视图第 ' + (x + 1) + ' 列高 ' + F[x] + '，但俯视图 / 左视图里放不下这个高度');
+    }
+    for (let y = 0; y < N; y++) {
+      if (S[y] === 0) continue;
+      let ok = false;
+      for (let x = 0; x < N; x++) if (T[x][y] && F[x] >= S[y]) { ok = true; break; }
+      if (!ok) problems.push('左视图第 ' + (y + 1) + ' 排高 ' + S[y] + '，但俯视图 / 主视图里放不下这个高度');
+    }
+
+    const maxH = emptyGrid(N);
+    let maxTotal = 0;
+    for (let y = 0; y < N; y++)
+      for (let x = 0; x < N; x++)
+        if (T[x][y]) {
+          const v = Math.min(F[x], S[y]);
+          maxH[y][x] = v;
+          maxTotal += v;
+        }
+
+    if (problems.length) {
+      return {
+        ok: false, problems,
+        minTotal: null, maxTotal: null, minHeights: null, maxHeights: maxH,
+        detail: null, matching: []
+      };
+    }
+
+    // 基准
+    let base = 0, rowCost = 0, colCost = 0;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (T[x][y]) base++;
+    const rowNeed = [], colNeed = [];
+    for (let x = 0; x < N; x++) if (F[x] >= 2) { rowNeed.push(x); rowCost += F[x] - 1; }
+    for (let y = 0; y < N; y++) if (S[y] >= 2) { colNeed.push(y); colCost += S[y] - 1; }
+
+    // 等高分图上的最大权匹配（行代表格与列代表格重合）
+    const nR = rowNeed.length, nC = colNeed.length;
+    const adj = [];
+    for (let i = 0; i < nR; i++) adj.push([]);
+    for (let i = 0; i < nR; i++) {
+      const x = rowNeed[i];
+      for (let j = 0; j < nC; j++) {
+        const y = colNeed[j];
+        if (T[x][y] && F[x] === S[y]) adj[i].push([j, F[x] - 1]);
+      }
+    }
+    const memo = new Map();
+    function dp(i, used) {
+      if (i >= nR) return 0;
+      const k = i * 32 + used;
+      if (memo.has(k)) return memo.get(k);
+      let best = dp(i + 1, used);
+      for (const [j, w] of adj[i]) {
+        if (used & (1 << j)) continue;
+        const v = w + dp(i + 1, used | (1 << j));
+        if (v > best) best = v;
+      }
+      memo.set(k, best);
+      return best;
+    }
+    const savings = dp(0, 0);
+
+    // 还原匹配
+    const matching = [];
+    let used = 0, i = 0;
+    while (i < nR) {
+      let picked = -1;
+      for (const [j, w] of adj[i]) {
+        if (used & (1 << j)) continue;
+        if (w + dp(i + 1, used | (1 << j)) === dp(i, used)) { picked = j; break; }
+      }
+      if (picked >= 0) {
+        matching.push([rowNeed[i], colNeed[picked]]);
+        used |= (1 << picked);
+      }
+      i++;
+    }
+
+    const minTotal = base + rowCost + colCost - savings;
+
+    // 构造一组达到最少的摆法（同时用于校验）
+    const minH = emptyGrid(N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (T[x][y]) minH[y][x] = 1;
+    const rowDone = new Array(N).fill(false), colDone = new Array(N).fill(false);
+    for (const [x, y] of matching) {
+      minH[y][x] = F[x];
+      rowDone[x] = true; colDone[y] = true;
+    }
+    for (const x of rowNeed) {
+      if (rowDone[x]) continue;
+      let pick = -1;
+      for (let y = 0; y < N; y++) if (T[x][y] && S[y] >= F[x]) { pick = y; break; }
+      if (pick < 0) continue; // 前面已判过可行性
+      minH[pick][x] = F[x];
+      rowDone[x] = true;
+    }
+    for (const y of colNeed) {
+      if (colDone[y]) continue;
+      let best = -1, bestX = -1;
+      for (let x = 0; x < N; x++) if (T[x][y] && F[x] >= S[y] && minH[y][x] < S[y]) { bestX = x; break; }
+      if (bestX < 0) continue;
+      minH[y][bestX] = S[y];
+      colDone[y] = true;
+    }
+
+    return {
+      ok: true, problems: [],
+      minTotal, maxTotal, minHeights: minH, maxHeights: maxH,
+      detail: { base, rowCost, colCost, savings },
+      matching
+    };
+  }
+
+  /* ---------------- 立方体展开图折叠 ---------------- */
+  /* 每个格子带一个局部坐标系 (n 法向, u「纸面向上」, r「纸面向右」)。
+     沿网卷起的规则（由真实折叠推出，保持右手系）：
+       向右：n←r,  u←u,  r←-n
+       向左：n←-r, u←u,  r←n
+       向下：n←-u, u←n,  r←r
+       向上：n←u,  u←-n, r←r
+     六格连通且法向两两不同 ⇒ 恰好卷成一个立方体（6 个方向各占一面）。 */
+  function foldStep(f, dir) {
+    const n = f.n, u = f.u, r = f.r;
+    const neg = v => [-v[0], -v[1], -v[2]];
+    if (dir === 'right') return { n: r.slice(), u: u.slice(), r: neg(n) };
+    if (dir === 'left') return { n: neg(r), u: u.slice(), r: n.slice() };
+    if (dir === 'down') return { n: neg(u), u: n.slice(), r: r.slice() };
+    return { n: u.slice(), u: neg(n), r: r.slice() };
+  }
+
+  function foldNet(cells) {
+    if (!Array.isArray(cells)) cells = [];
+    if (cells.length !== 6) {
+      return { ok: false, reason: '需要恰好 6 个格子（当前 ' + cells.length + ' 个）', items: [], pairs: [] };
+    }
+    const cellKey = c => c.x + ',' + c.y;
+    const map = new Map();
+    for (const c of cells) map.set(cellKey(c), c);
+    if (map.size !== 6) return { ok: false, reason: '有重复格子', items: [], pairs: [] };
+
+    const frames = new Map();
+    const start = cells[0];
+    frames.set(cellKey(start), { n: [0, 0, 1], u: [0, 1, 0], r: [1, 0, 0] });
+    const queue = [start];
+    let head = 0;
+    const seen = new Set([cellKey(start)]);
+    const NB = [[1, 0, 'right'], [-1, 0, 'left'], [0, 1, 'down'], [0, -1, 'up']];
+    while (head < queue.length) {
+      const c = queue[head++];
+      const f = frames.get(cellKey(c));
+      for (const [dx, dy, dir] of NB) {
+        const k2 = (c.x + dx) + ',' + (c.y + dy);
+        if (!map.has(k2) || seen.has(k2)) continue;
+        seen.add(k2);
+        frames.set(k2, foldStep(f, dir));
+        queue.push({ x: c.x + dx, y: c.y + dy });
+      }
+    }
+    if (seen.size !== 6) return { ok: false, reason: '6 个格子没有边相连成一片', items: [], pairs: [] };
+
+    const ordered = cells.slice().sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    const items = ordered.map((c, i) => ({ i, x: c.x, y: c.y, ...frames.get(cellKey(c)) }));
+    const byNormal = new Map();
+    let dup = null;
+    for (const it of items) {
+      const nk = it.n.join(',');
+      if (byNormal.has(nk)) dup = [byNormal.get(nk), it];
+      else byNormal.set(nk, it);
+    }
+    if (dup) {
+      return {
+        ok: false,
+        reason: '折叠时有两格卷到了同一个面上 —— 这 6 格卷不成正方体',
+        items, pairs: [], conflict: dup
+      };
+    }
+
+    const pairs = [];
+    for (const it of items) {
+      const opp = byNormal.get([-it.n[0], -it.n[1], -it.n[2]].join(','));
+      if (opp && it.i < opp.i) pairs.push([it.i, opp.i]);
+    }
+    pairs.sort((a, b) => a[0] - b[0]);
+
+    const relation = (i, j) => {
+      const A = items[i], B = items[j];
+      if (A.n.join(',') === B.n.join(',')) return 'overlap';
+      const opposite = A.n.join(',') === [-B.n[0], -B.n[1], -B.n[2]].join(',');
+      return opposite ? 'opposite' : 'adjacent';
+    };
+
+    return { ok: true, reason: '', items, pairs, relation };
+  }
+
+  /* ---------------- 拼接：24 种旋转 + 精确覆盖 ---------------- */
+  const PERMS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  function permSign(p) {
+    let inv = 0;
+    for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) if (p[i] > p[j]) inv++;
+    return inv % 2 === 0 ? 1 : -1;
+  }
+  const ROTS = (function () {
+    const out = [];
+    for (const p of PERMS) {
+      const sgn = permSign(p);
+      for (let s = 0; s < 8; s++) {
+        const signs = [(s & 1) ? -1 : 1, (s & 2) ? -1 : 1, (s & 4) ? -1 : 1];
+        if (sgn * signs[0] * signs[1] * signs[2] !== 1) continue;
+        out.push({ p, signs });
+      }
+    }
+    return out;
+  })();
+
+  function applyRot(c, m) {
+    return [m.signs[0] * c[m.p[0]], m.signs[1] * c[m.p[1]], m.signs[2] * c[m.p[2]]];
+  }
+  function normalize(cells) {
+    let mx = Infinity, my = Infinity, mz = Infinity;
+    for (const c of cells) { mx = Math.min(mx, c[0]); my = Math.min(my, c[1]); mz = Math.min(mz, c[2]); }
+    return cells.map(c => [c[0] - mx, c[1] - my, c[2] - mz]);
+  }
+  const sortCells = cells => cells.slice().sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]) || (a[2] - b[2]));
+  const cellsKey = cells => sortCells(cells).map(c => c.join(',')).join(';');
+
+  /** 一个拼块的全部互不相同的朝向（只旋转，不含镜像） */
+  function orientations(cells) {
+    const base = normalize(cells);
+    const seen = new Set();
+    const out = [];
+    for (const m of ROTS) {
+      const t = normalize(base.map(c => applyRot(c, m)));
+      const k = cellsKey(t);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(sortCells(t));
+    }
+    return out;
+  }
+
+  function connected(cells) {
+    if (!cells.length) return false;
+    const s = voxelSet(cells);
+    const seen = new Set([key(cells[0][0], cells[0][1], cells[0][2])]);
+    const q = [cells[0]];
+    let head = 0;
+    while (head < q.length) {
+      const [x, y, z] = q[head++];
+      for (const [dx, dy, dz] of DIRS6) {
+        const k = key(x + dx, y + dy, z + dz);
+        if (s.has(k) && !seen.has(k)) { seen.add(k); q.push([x + dx, y + dy, z + dz]); }
+      }
+    }
+    return seen.size === cells.length;
+  }
+
+  /**
+   * 用若干拼块（每块各用一次，可旋转、不可翻面）恰好填满目标区域。
+   * 深度优先 + 最小下标空位强制覆盖，配位掩码剪枝。
+   */
+  function assemble(piecesIn, targetIn, opts) {
+    opts = opts || {};
+    const maxNodes = opts.maxNodes || 500000;
+    const pieces = piecesIn.map(p => normalize(p.filter(Boolean))).filter(p => p.length > 0);
+    const target = normalize(targetIn);
+    if (!target.length) return { ok: false, reason: '目标区域是空的，先画出要拼成的整体形状', placements: [] };
+    if (pieces.length === 0) return { ok: false, reason: '还没有画出任何拼块', placements: [] };
+    const targetVol = target.length;
+    const pieceVol = pieces.reduce((a, p) => a + p.length, 0);
+    if (pieceVol !== targetVol) {
+      return {
+        ok: false,
+        reason: '体积对不上：拼块合计 ' + pieceVol + ' 格，目标区域 ' + targetVol + ' 格',
+        placements: []
+      };
+    }
+    if (targetVol > 60) return { ok: false, reason: '目标区域太大（上限 60 格），先用更小的尺寸', placements: [] };
+
+    const order = sortCells(target).sort((a, b) => (a[2] - b[2]) || (a[1] - b[1]) || (a[0] - b[0]));
+    const index = new Map();
+    order.forEach((c, i) => index.set(key(c[0], c[1], c[2]), i));
+    const fullMask = (1n << BigInt(order.length)) - 1n;
+
+    const oris = pieces.map(p => orientations(p));
+    let oc = 0;
+    for (const list of oris) for (const o of list) { o.idx = oc++; }
+    const maskCache = new Map();
+
+    function placement(cells, oid, off) {
+      const ck = oid + '|' + off[0] + ',' + off[1] + ',' + off[2];
+      if (maskCache.has(ck)) return maskCache.get(ck);
+      let mask = 0n;
+      const abs = [];
+      for (const c of cells) {
+        const p = [c[0] + off[0], c[1] + off[1], c[2] + off[2]];
+        const id = index.get(key(p[0], p[1], p[2]));
+        if (id === undefined) { maskCache.set(ck, null); return null; }
+        mask |= (1n << BigInt(id));
+        abs.push(p);
+      }
+      const res = { mask, abs };
+      maskCache.set(ck, res);
+      return res;
+    }
+
+    let nodes = 0;
+    function dfs(occ, used) {
+      if (used === (1 << pieces.length) - 1) return occ === fullMask ? [] : null;
+      if (++nodes > maxNodes) return 'LIMIT';
+      let free = -1;
+      for (let i = 0; i < order.length; i++) {
+        if ((occ >> BigInt(i)) & 1n) continue;
+        free = i; break;
+      }
+      if (free < 0) return null;
+      const freeCell = order[free];
+
+      for (let pi = 0; pi < pieces.length; pi++) {
+        if (used & (1 << pi)) continue;
+        for (const ori of oris[pi]) {
+          const tried = new Set();
+          for (const c of ori) {
+            const off = [freeCell[0] - c[0], freeCell[1] - c[1], freeCell[2] - c[2]];
+            const ok = off.join(',');
+            if (tried.has(ok)) continue;
+            tried.add(ok);
+            const pl = placement(ori, ori.idx, off);
+            if (!pl) continue;
+            if (pl.mask & occ) continue;
+            const sub = dfs(occ | pl.mask, used | (1 << pi));
+            if (sub === 'LIMIT') return 'LIMIT';
+            if (sub) return [{ piece: pi, cells: pl.abs }, ...sub];
+          }
+        }
+      }
+      return null;
+    }
+
+    const res = dfs(0n, 0);
+    if (res === 'LIMIT') return { ok: false, reason: '搜索步数超限（可能是无解，或图形太复杂）', placements: [], nodes };
+    if (!res) return { ok: false, reason: '这些拼块无法恰好拼成目标形状（可旋转，但不能翻面 / 镜像）', placements: [], nodes };
+    return { ok: true, reason: '', placements: res, nodes };
+  }
+
+  /* ---------------- n×n×n 表面涂色 ---------------- */
+  function paintedCube(n) {
+    n = Math.floor(n);
+    if (n <= 0) return null;
+    const p3 = n >= 2 ? 8 : 0;
+    const p2 = n >= 3 ? 12 * (n - 2) : 0;
+    const p1 = n >= 3 ? 6 * (n - 2) * (n - 2) : 0;
+    const p0 = n >= 3 ? Math.pow(n - 2, 3) : 0;
+    return { n, total: n * n * n, p3, p2, p1, p0, area: 6 * n * n };
+  }
+
+  const api = {
+    emptyGrid, cloneGrid, voxelsFromHeights, heightsFromVoxels, threeViews,
+    surfaceArea, fullyHiddenCount, coveredByTop, voxelSet,
+    solveViews, foldNet, foldStep, orientations, assemble,
+    paintedCube, connected, cellsKey, normalize, key
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  global.CubeCore = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+﻿/* =========================================================
+   ui.js —— 3D 渲染 + 五个标签页交互
+   ========================================================= */
+(function () {
+  'use strict';
+
+  const C = window.CubeCore;
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const PIECE_COLORS = ['#3f7bfa', '#12a594', '#e8912b', '#8b5cf6'];
+  const PIECE_NAMES = ['A', 'B', 'C', 'D'];
+
+  /* ---------------- toast ---------------- */
+  let toastTimer = 0;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  /* =========================================================
+     3D 渲染器（Canvas 2D 正交投影 + 画家算法）
+     ========================================================= */
+  const FACES = [
+    { n: [1, 0, 0], c: [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]] },
+    { n: [-1, 0, 0], c: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]] },
+    { n: [0, 1, 0], c: [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]] },
+    { n: [0, -1, 0], c: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]] },
+    { n: [0, 0, 1], c: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]] },
+    { n: [0, 0, -1], c: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]] }
+  ];
+  const FACE_SHADE = [0.87, 0.66, 0.76, 0.58, 1.0, 0.45];
+
+  function shade(hex, f) {
+    const v = parseInt(hex.slice(1), 16);
+    let r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
+    if (f >= 1) {
+      r += (255 - r) * 0.1; g += (255 - g) * 0.1; b += (255 - b) * 0.1;
+    } else {
+      r *= f; g *= f; b *= f;
+    }
+    return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
+  }
+
+  class Viewer {
+    constructor(canvas, opts) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d');
+      this.opts = Object.assign({ orbit: true, interactive: false, hoverable: false }, opts || {});
+      this.cam = { theta: -Math.PI / 4, phi: 0.52, zoom: 1, panX: 0, panY: 0 };
+      this.scene = { n: 4, h: 4, floor: true, parts: [], labels: true };
+      this.hover = null;
+      this.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      this.w = 0; this.h = 0;
+      this._raf = 0;
+      this.idCanvas = document.createElement('canvas');
+      this.idCtx = this.idCanvas.getContext('2d', { willReadFrequently: true });
+      this._bind();
+      const ro = new ResizeObserver(() => this.resize());
+      ro.observe(canvas);
+      this.resize();
+    }
+
+    resetCam() {
+      this.cam.theta = -Math.PI / 4;
+      this.cam.phi = 0.52;
+      this.cam.zoom = 1;
+      this.cam.panX = 0; this.cam.panY = 0;
+      this.draw();
+    }
+
+    setScene(scene) {
+      this.scene = Object.assign({ n: 4, h: 4, floor: true, parts: [], labels: true }, scene);
+      this.draw();
+    }
+
+    resize() {
+      const r = this.canvas.getBoundingClientRect();
+      const w = Math.max(1, Math.round(r.width));
+      const h = Math.max(1, Math.round(r.height));
+      if (w === this.w && h === this.h) return;
+      this.w = w; this.h = h;
+      this.canvas.width = Math.round(w * this.dpr);
+      this.canvas.height = Math.round(h * this.dpr);
+      if (this.opts.interactive) {
+        this.idCanvas.width = this.canvas.width;
+        this.idCanvas.height = this.canvas.height;
+      }
+      this.draw();
+    }
+
+    draw() {
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => { this._raf = 0; this._paint(); });
+    }
+
+    _paint() {
+      if (!this.w || !this.h) return;
+      const ctx = this.ctx;
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.clearRect(0, 0, this.w, this.h);
+      this._calc();
+      this._draw(ctx, false);
+      if (this.opts.interactive) {
+        const ictx = this.idCtx;
+        ictx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        ictx.clearRect(0, 0, this.w, this.h);
+        this._draw(ictx, true);
+        const hasCubes = this.scene.parts.some(p => p.cells && p.cells.length);
+        if (!hasCubes) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(122,134,153,0.8)';
+          ctx.font = '13px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('点击底板格子放方块', this.w / 2, this.h * 0.18);
+          ctx.restore();
+        }
+      }
+    }
+
+    _calc() {
+      const cam = this.cam, sc = this.scene;
+      const N = Math.max(sc.n, 1), H = Math.max(sc.h, 1);
+      const R = 0.5 * Math.hypot(N, N, Math.max(H, 2)) + 0.85;
+      this._st = Math.sin(cam.theta); this._ct = Math.cos(cam.theta);
+      this._sp = Math.sin(cam.phi); this._cp = Math.cos(cam.phi);
+      this._S = Math.min(this.w, this.h) * 0.55 * cam.zoom / R;
+      this._cx = this.w / 2 + cam.panX;
+      this._cy = this.h / 2 + cam.panY;
+      this._c = [N / 2, N / 2, Math.min(H, 4) * 0.40];
+    }
+
+    _proj(x, y, z) {
+      const px = x - this._c[0], py = y - this._c[1], pz = z - this._c[2];
+      const sx = -this._st * px + this._ct * py;
+      const sy = this._sp * this._ct * px + this._sp * this._st * py - this._cp * pz;
+      const dp = this._cp * this._ct * px + this._cp * this._st * py + this._sp * pz;
+      return [this._cx + sx * this._S, this._cy + sy * this._S, dp];
+    }
+
+    _poly(ctx, pts) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.closePath();
+    }
+
+    _draw(ctx, idMode) {
+      const sc = this.scene, N = Math.max(sc.n, 1);
+      const camDir = [this._cp * this._ct, this._cp * this._st, this._sp];
+      ctx.lineJoin = 'round';
+
+      /* ---- 地面格子 ---- */
+      if (sc.floor !== false) {
+        const floor = [];
+        for (let y = 0; y < N; y++) {
+          for (let x = 0; x < N; x++) {
+            const pts = [
+              this._proj(x, y, 0), this._proj(x + 1, y, 0),
+              this._proj(x + 1, y + 1, 0), this._proj(x, y + 1, 0)
+            ];
+            const d = (pts[0][2] + pts[1][2] + pts[2][2] + pts[3][2]) / 4;
+            floor.push({ x, y, pts, d });
+          }
+        }
+        floor.sort((a, b) => a.d - b.d);
+        for (const f of floor) {
+          const isHover = this.hover && this.hover.x === f.x && this.hover.y === f.y;
+          this._poly(ctx, f.pts);
+          if (idMode) {
+            const id = f.y * N + f.x + 1;
+            ctx.fillStyle = 'rgb(' + (id & 255) + ',' + ((id >> 8) & 255) + ',0)';
+            ctx.fill();
+            continue;
+          }
+          ctx.fillStyle = isHover ? 'rgba(47,111,237,0.13)' : '#ffffff';
+          ctx.fill();
+          ctx.strokeStyle = isHover ? 'rgba(47,111,237,0.5)' : 'rgba(24,38,64,0.11)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+        // 底板外框
+        if (!idMode) {
+          const outline = [
+            this._proj(0, 0, 0), this._proj(N, 0, 0), this._proj(N, N, 0), this._proj(0, N, 0)
+          ];
+          this._poly(ctx, outline);
+          ctx.strokeStyle = 'rgba(24,38,64,0.2)';
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+        }
+      }
+
+      /* ---- 方块表面 ---- */
+      const occ = new Set();
+      for (const part of sc.parts) for (const c of part.cells) occ.add(c[0] + ',' + c[1] + ',' + c[2]);
+      const faces = [];
+      for (const part of sc.parts) {
+        for (const cell of part.cells) {
+          const x = cell[0], y = cell[1], z = cell[2];
+          for (let fi = 0; fi < 6; fi++) {
+            const F = FACES[fi];
+            if (occ.has((x + F.n[0]) + ',' + (y + F.n[1]) + ',' + (z + F.n[2]))) continue;
+            const dot = F.n[0] * camDir[0] + F.n[1] * camDir[1] + F.n[2] * camDir[2];
+            if (dot <= 0.0001) continue;
+            const pts = F.c.map(o => this._proj(x + o[0], y + o[1], z + o[2]));
+            const d = (pts[0][2] + pts[1][2] + pts[2][2] + pts[3][2]) / 4;
+            faces.push({ pts, d, fi, color: part.color || '#4f83f7', x, y });
+          }
+        }
+      }
+      faces.sort((a, b) => a.d - b.d);
+
+      for (const f of faces) {
+        this._poly(ctx, f.pts);
+        if (idMode) {
+          const id = f.y * N + f.x + 1;
+          ctx.fillStyle = 'rgb(' + (id & 255) + ',' + ((id >> 8) & 255) + ',0)';
+          ctx.fill();
+          continue;
+        }
+        ctx.fillStyle = shade(f.color, FACE_SHADE[f.fi]);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(16,28,48,0.22)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    pick(clientX, clientY) {
+      if (!this.opts.interactive || !this.w) return null;
+      const r = this.canvas.getBoundingClientRect();
+      const px = Math.round((clientX - r.left) * this.dpr);
+      const py = Math.round((clientY - r.top) * this.dpr);
+      if (px < 0 || py < 0 || px >= this.idCanvas.width || py >= this.idCanvas.height) return null;
+      let data;
+      try { data = this.idCtx.getImageData(px, py, 1, 1).data; } catch (e) { return null; }
+      if (data[3] < 40) return null;
+      const id = data[0] + data[1] * 256;
+      if (!id) return null;
+      const N = Math.max(this.scene.n, 1);
+      const x = (id - 1) % N, y = Math.floor((id - 1) / N);
+      return { x, y };
+    }
+
+    _bind() {
+      const cv = this.canvas;
+      if (!this.opts.orbit) return;
+      let down = null;
+      cv.addEventListener('pointerdown', e => {
+        if (!this.opts.orbit) return;
+        try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 合成事件没有真实指针 */ }
+        down = {
+          x: e.clientX, y: e.clientY, theta: this.cam.theta, phi: this.cam.phi,
+          moved: false, button: e.button, shift: e.shiftKey
+        };
+      });
+      cv.addEventListener('pointermove', e => {
+        if (down) {
+          const dx = e.clientX - down.x, dy = e.clientY - down.y;
+          if (!down.moved && Math.hypot(dx, dy) > 4) down.moved = true;
+          if (down.moved) {
+            this.cam.theta = down.theta - dx * 0.0075;
+            this.cam.phi = clamp(down.phi + dy * 0.006, 0.12, 1.45);
+            this.draw();
+          }
+          return;
+        }
+        if (this.opts.hoverable) {
+          const cell = this.pick(e.clientX, e.clientY);
+          const same = cell && this.hover ? (cell.x === this.hover.x && cell.y === this.hover.y)
+            : (!cell && !this.hover);
+          if (!same) { this.hover = cell; this.draw(); }
+        }
+      });
+      cv.addEventListener('pointerup', e => {
+        if (!down) return;
+        const d = down; down = null;
+        if (d.moved) return;
+        if (!this.opts.interactive) return;
+        const cell = this.pick(e.clientX, e.clientY);
+        if (cell && this.onPick) this.onPick(cell, { button: d.button, shiftKey: d.shift });
+      });
+      cv.addEventListener('pointercancel', () => { down = null; });
+      cv.addEventListener('pointerleave', () => { if (this.hover) { this.hover = null; this.draw(); } });
+      cv.addEventListener('wheel', e => {
+        e.preventDefault();
+        this.cam.zoom = clamp(this.cam.zoom * Math.exp(-e.deltaY * 0.0012), 0.45, 3.4);
+        this.draw();
+      }, { passive: false });
+      cv.addEventListener('contextmenu', e => e.preventDefault());
+    }
+  }
+
+  /* =========================================================
+     标签页
+     ========================================================= */
+  const VIEWERS = {};
+  function switchTab(name) {
+    $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    $$('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+    if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+    requestAnimationFrame(() => {
+      Object.keys(VIEWERS).forEach(k => VIEWERS[k].resize());
+    });
+  }
+
+  /* =========================================================
+     ① 堆叠数块
+     ========================================================= */
+  const stack = {
+    n: 4, maxH: 4, grid: null, viewer: null, color: '#4f83f7',
+
+    init() {
+      this.grid = C.emptyGrid(this.n);
+      this.viewer = new Viewer($('#cv-stack'), { interactive: true, hoverable: true });
+      VIEWERS.stack = this.viewer;
+      this.viewer.onPick = (cell, ev) => {
+        if (ev.button === 2 || ev.shiftKey) this.removeAt(cell.x, cell.y);
+        else this.addAt(cell.x, cell.y);
+      };
+      $('#seg-size').addEventListener('click', e => {
+        const b = e.target.closest('button[data-n]');
+        if (!b) return;
+        this.setN(parseInt(b.dataset.n, 10));
+      });
+      $('#btn-clear').onclick = () => { this.grid = C.emptyGrid(this.n); this.render(); };
+      $('#btn-demo1').onclick = () => this.demo(1);
+      $('#btn-demo2').onclick = () => this.demo(2);
+      $('#btn-reset-cam').onclick = () => this.viewer.resetCam();
+      $('#btn-to-views').onclick = () => {
+        const v = C.threeViews(this.grid);
+        views.load(this.n, v.F, v.S, v.T);
+        switchTab('views');
+      };
+      this.render();
+    },
+
+    setN(n) {
+      if (n === this.n) return;
+      const old = this.grid;
+      const g = C.emptyGrid(n);
+      for (let y = 0; y < Math.min(n, old.length); y++)
+        for (let x = 0; x < Math.min(n, old.length); x++) g[y][x] = old[y][x];
+      this.n = n; this.grid = g;
+      $$('#seg-size button').forEach(b => b.classList.toggle('active', +b.dataset.n === n));
+      this.viewer.hover = null;
+      this.render();
+    },
+
+    addAt(x, y) {
+      const g = this.grid;
+      if (!g[y] || g[y][x] === undefined) return;
+      if (g[y][x] >= this.maxH) { toast('这一列已经到最高的 ' + this.maxH + ' 层了'); return; }
+      g[y][x]++;
+      this.render();
+    },
+    removeAt(x, y) {
+      const g = this.grid;
+      if (!g[y] || g[y][x] === undefined || g[y][x] === 0) return;
+      g[y][x]--;
+      this.render();
+    },
+
+    demo(kind) {
+      const n = 3;
+      this.n = n;
+      this.grid = C.emptyGrid(n);
+      if (kind === 1) {
+        for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) this.grid[y][x] = y + 1;
+      } else {
+        for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) this.grid[y][x] = 3;
+      }
+      $$('#seg-size button').forEach(b => b.classList.toggle('active', +b.dataset.n === n));
+      this.render();
+      this.viewer.resetCam();
+    },
+
+    cells() { return C.voxelsFromHeights(this.grid); },
+
+    render() {
+      this.viewer.setScene({
+        n: this.n, h: this.maxH, floor: true, labels: true,
+        parts: [{ color: this.color, cells: this.cells() }]
+      });
+      this.renderStats();
+      this.renderViews();
+    },
+
+    renderStats() {
+      const cells = this.cells();
+      const total = cells.length;
+      let maxLevel = 0;
+      for (const row of this.grid) for (const v of row) maxLevel = Math.max(maxLevel, v);
+      const hidden = C.fullyHiddenCount(cells);
+      const area = C.surfaceArea(cells);
+      $('#stack-stats').innerHTML = [
+        '<div class="stat"><b>' + total + '</b><span>方块总数</span></div>',
+        '<div class="stat"><b>' + maxLevel + '</b><span>最高层数</span></div>',
+        '<div class="stat"><b>' + hidden + '</b><span>六面全被遮挡</span></div>',
+        '<div class="stat"><b>' + area + '</b><span>表面积（单位面）</span></div>'
+      ].join('');
+    },
+
+    renderViews() {
+      const v = C.threeViews(this.grid);
+      const n = this.n, rows = this.maxH;
+
+      fillMini($('#mg-front'), n, rows, (c, r) => {
+        const level = rows - r;
+        return { on: v.F[c] >= level, cls: 'mg' };
+      });
+      fillMini($('#mg-side'), n, rows, (c, r) => {
+        const level = rows - r;
+        return { on: v.S[c] >= level, cls: 'mg' };
+      });
+      fillMini($('#mg-top'), n, n, (c, r) => {
+        const y = n - 1 - r;
+        const h = this.grid[y][c];
+        return { on: h > 0, cls: 'num', text: h > 0 ? String(h) : '' };
+      });
+    }
+  };
+
+  function fillMini(el, cols, rows, fn) {
+    if (!el) return;
+    const cellPx = el.id === 'mg-top' ? 25 : 15;
+    el.style.gridTemplateColumns = 'repeat(' + cols + ', ' + cellPx + 'px)';
+    const frag = document.createDocumentFragment();
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const res = fn(c, r);
+        const d = document.createElement('div');
+        d.className = 'mg-cell' + (res.on ? ' on' : '') + (res.cls ? ' ' + res.cls : '');
+        if (res.text) d.textContent = res.text;
+        frag.appendChild(d);
+      }
+    }
+    el.innerHTML = '';
+    el.appendChild(frag);
+  }
+
+  /* =========================================================
+     ② 三视图互推
+     ========================================================= */
+  const views = {
+    n: 3, F: [], S: [], T: [], preview: 'min', result: null, viewer: null,
+
+    init() {
+      this.viewer = new Viewer($('#cv-preview'), { interactive: false });
+      VIEWERS.preview = this.viewer;
+      this.setN(3, true);
+      $('#seg-vsize').addEventListener('click', e => {
+        const b = e.target.closest('button[data-n]');
+        if (!b) return;
+        const n = parseInt(b.dataset.n, 10);
+        $$('#seg-vsize button').forEach(x => x.classList.toggle('active', +x.dataset.n === n));
+        this.setN(n, true);
+      });
+      $('#btn-vclear').onclick = () => this.setN(this.n, true);
+      $('#btn-vdemo').onclick = () => this.demo();
+      $('#seg-preview').addEventListener('click', e => {
+        const b = e.target.closest('button[data-p]');
+        if (!b) return;
+        this.preview = b.dataset.p;
+        $$('#seg-preview button').forEach(x => x.classList.toggle('active', x.dataset.p === this.preview));
+        this.renderPreview();
+      });
+    },
+
+    setN(n, reset) {
+      this.n = n;
+      if (reset) {
+        this.F = new Array(n).fill(0);
+        this.S = new Array(n).fill(0);
+        this.T = Array.from({ length: n }, () => new Array(n).fill(false));
+      }
+      this.renderAll();
+    },
+
+    load(n, F, S, T) {
+      this.n = n;
+      this.F = F.slice();
+      this.S = S.slice();
+      this.T = T.map(col => col.slice());
+      $$('#seg-vsize button').forEach(x => x.classList.toggle('active', +x.dataset.n === n));
+      this.renderAll();
+    },
+
+    demo() {
+      // 3x3 底面、高度 [[1,1,1],[2,2,2],[3,3,3]] 的三视图
+      const n = 3;
+      this.n = n;
+      this.F = [3, 3, 3];
+      this.S = [1, 2, 3];
+      this.T = [
+        [true, true, true],
+        [true, true, true],
+        [true, true, true]
+      ];
+      $$('#seg-vsize button').forEach(x => x.classList.toggle('active', +x.dataset.n === n));
+      this.renderAll();
+    },
+
+    renderAll() {
+      this.renderEditors();
+      this.renderResult();
+    },
+
+    renderEditors() {
+      const n = this.n, rows = 4;
+
+      const ef = $('#ed-front');
+      ef.style.gridTemplateColumns = 'repeat(' + n + ', 30px)';
+      ef.innerHTML = '';
+      for (let r = 0; r < rows; r++) {
+        const level = rows - r;
+        for (let x = 0; x < n; x++) {
+          const b = document.createElement('button');
+          b.className = 'eg-cell' + (this.F[x] >= level ? ' on' : '');
+          if (this.F[x] === level) b.classList.add('tall');
+          b.title = '第 ' + (x + 1) + ' 列，高 ' + level;
+          b.onclick = () => {
+            this.F[x] = this.F[x] === level ? Math.max(0, level - 1) : level;
+            this.renderAll();
+          };
+          ef.appendChild(b);
+        }
+      }
+
+      const es = $('#ed-side');
+      es.style.gridTemplateColumns = 'repeat(' + n + ', 30px)';
+      es.innerHTML = '';
+      for (let r = 0; r < rows; r++) {
+        const level = rows - r;
+        for (let y = 0; y < n; y++) {
+          const b = document.createElement('button');
+          b.className = 'eg-cell' + (this.S[y] >= level ? ' on' : '');
+          if (this.S[y] === level) b.classList.add('tall');
+          b.title = '第 ' + (y + 1) + ' 排，高 ' + level;
+          b.onclick = () => {
+            this.S[y] = this.S[y] === level ? Math.max(0, level - 1) : level;
+            this.renderAll();
+          };
+          es.appendChild(b);
+        }
+      }
+
+      const et = $('#ed-top');
+      et.style.gridTemplateColumns = 'repeat(' + n + ', 30px)';
+      et.innerHTML = '';
+      for (let r = 0; r < n; r++) {
+        const y = n - 1 - r;
+        for (let x = 0; x < n; x++) {
+          const b = document.createElement('button');
+          b.className = 'eg-cell' + (this.T[x][y] ? ' on' : '');
+          b.title = '第 ' + (y + 1) + ' 排第 ' + (x + 1) + ' 列';
+          b.onclick = () => { this.T[x][y] = !this.T[x][y]; this.renderAll(); };
+          et.appendChild(b);
+        }
+      }
+    },
+
+    renderResult() {
+      const res = C.solveViews(this.n, this.F, this.S, this.T);
+      this.result = res;
+      const box = $('#views-result');
+
+      if (!res.ok) {
+        box.innerHTML =
+          '<div class="status bad"><span class="big">这组三视图无解</span>' +
+          '三个视图之间互相矛盾，不可能由立方体堆出来。</div>' +
+          (res.problems.length ? '<ul class="reason-list">' +
+            res.problems.slice(0, 4).map(p => '<li>' + p + '</li>').join('') + '</ul>' : '');
+      } else {
+        const d = res.detail;
+        box.innerHTML =
+          '<div class="big-pair">' +
+            '<div class="big-stat min"><b>' + res.minTotal + '</b><span>最少方块数</span></div>' +
+            '<div class="big-stat max"><b>' + res.maxTotal + '</b><span>最多方块数</span></div>' +
+          '</div>' +
+          '<div class="formula">' +
+            '<b>最少</b> = 俯视图 ' + d.base + ' 格（每格至少 1 块）' +
+            ' ＋ 主视图补 ' + d.rowCost + ' ＋ 左视图补 ' + d.colCost +
+            ' － 共用代表格省 ' + d.savings +
+            ' = <b>' + res.minTotal + '</b><br>' +
+            '<b>最多</b> = 每个俯视格取 min(该列主视图高度, 该排左视图高度) 之和' +
+          '</div>';
+      }
+      this.renderPreview();
+    },
+
+    renderPreview() {
+      const res = this.result;
+      const n = this.n;
+      if (!res || !res.ok) {
+        this.viewer.setScene({ n: n, h: 4, floor: true, parts: [] });
+        return;
+      }
+      const heights = this.preview === 'min' ? res.minHeights : res.maxHeights;
+      if (!heights) { this.viewer.setScene({ n: n, h: 4, floor: true, parts: [] }); return; }
+      this.viewer.setScene({
+        n: n, h: 4, floor: true,
+        parts: [{ color: '#8b5cf6', cells: C.voxelsFromHeights(heights) }]
+      });
+    }
+  };
+
+  /* =========================================================
+     ③ 拼接拼合
+     ========================================================= */
+  const asm = {
+    w: 2, d: 2, h: 2,
+    target: new Set(),
+    pieces: [new Set(), new Set(), new Set(), new Set()],
+    pdim: 3,
+    viewer: null,
+    solved: false,
+
+    init() {
+      this.viewer = new Viewer($('#cv-asm'), { interactive: false });
+      VIEWERS.asm = this.viewer;
+      $('#asm-w').value = this.w;
+      $('#asm-d').value = this.d;
+      $('#asm-h').value = this.h;
+      ['w', 'd', 'h'].forEach(k => {
+        $('#asm-' + k).addEventListener('change', e => {
+          const v = clamp(parseInt(e.target.value, 10) || 1, 1, 4);
+          this[k] = v;
+          this.trimCells();
+          this.solved = false;
+          this.renderAll();
+        });
+      });
+      $('#btn-target-fill').onclick = () => { this.fillTarget(); this.solved = false; this.renderAll(); };
+      $('#btn-target-clear').onclick = () => { this.target.clear(); this.solved = false; this.renderAll(); };
+      $('#btn-asm-demo').onclick = () => this.demo();
+      $('#btn-solve').onclick = () => this.solve();
+      $('#btn-asm-cam').onclick = () => this.viewer.resetCam();
+      this.fillTarget();
+      this.renderAll();
+    },
+
+    fillTarget() {
+      const s = new Set();
+      for (let z = 0; z < this.h; z++)
+        for (let y = 0; y < this.d; y++)
+          for (let x = 0; x < this.w; x++) s.add(x + ',' + y + ',' + z);
+      this.target = s;
+    },
+
+    trimCells() {
+      const keep = k => {
+        const [x, y, z] = k.split(',').map(Number);
+        return x < this.w && y < this.d && z < this.h;
+      };
+      this.target = new Set([...this.target].filter(keep));
+      this.pieces = this.pieces.map(s => new Set([...s].filter(k => {
+        const [x, y, z] = k.split(',').map(Number);
+        return x < this.pdim && y < this.pdim && z < this.pdim;
+      })));
+    },
+
+    demo() {
+      this.w = 3; this.d = 2; this.h = 2;
+      $('#asm-w').value = 3; $('#asm-d').value = 2; $('#asm-h').value = 2;
+      this.fillTarget();
+      const L = ['0,0,0', '1,0,0', '0,1,0'];
+      this.pieces = [new Set(L), new Set(L), new Set(L), new Set(L)];
+      this.solved = false;
+      this.renderAll();
+      toast('示例：4 个 L 形三连块拼 3×2×2');
+    },
+
+    renderAll() {
+      this.renderTarget();
+      this.renderPieces();
+      this.renderScene();
+      if (!this.solved) {
+        $('#asm-tip').textContent = '左侧画出目标与拼块，点「开始求解」';
+        $('#asm-status').className = 'status';
+        $('#asm-status').innerHTML = '目标 ' + this.target.size + ' 格 · 拼块合计 ' +
+          this.pieces.reduce((a, s) => a + s.size, 0) + ' 格';
+      }
+    },
+
+    renderTarget() {
+      const el = $('#asm-target');
+      const cells = this.target;
+      el.innerHTML = '';
+      for (let z = 0; z < this.h; z++) {
+        const layer = document.createElement('div');
+        layer.className = 'layer';
+        const cap = document.createElement('span');
+        cap.className = 'layer-cap';
+        cap.textContent = '第 ' + (z + 1) + ' 层';
+        const grid = document.createElement('div');
+        grid.className = 'lgrid';
+        grid.style.gridTemplateColumns = 'repeat(' + this.w + ', 22px)';
+        for (let r = 0; r < this.d; r++) {
+          const y = this.d - 1 - r;
+          for (let x = 0; x < this.w; x++) {
+            const b = document.createElement('button');
+            b.className = 'lcell' + (cells.has(x + ',' + y + ',' + z) ? ' on' : '');
+            b.onclick = () => {
+              const k = x + ',' + y + ',' + z;
+              if (cells.has(k)) cells.delete(k); else cells.add(k);
+              this.solved = false;
+              this.renderAll();
+            };
+            grid.appendChild(b);
+          }
+        }
+        layer.appendChild(cap);
+        layer.appendChild(grid);
+        el.appendChild(layer);
+      }
+      $('#asm-target-vol').textContent = this.target.size + ' 格';
+    },
+
+    renderPieces() {
+      const wrap = $('#asm-pieces');
+      wrap.innerHTML = '';
+      for (let i = 0; i < 4; i++) {
+        const card = document.createElement('div');
+        card.className = 'card piece';
+        const head = document.createElement('div');
+        head.className = 'piece-head';
+        const dot = document.createElement('span');
+        dot.className = 'piece-dot';
+        dot.style.background = PIECE_COLORS[i];
+        const name = document.createElement('span');
+        name.className = 'piece-name';
+        name.textContent = PIECE_NAMES[i] + ' 块';
+        const vol = document.createElement('span');
+        vol.className = 'piece-vol';
+        vol.textContent = this.pieces[i].size + ' 格';
+        head.appendChild(dot); head.appendChild(name); head.appendChild(vol);
+
+        const layers = document.createElement('div');
+        layers.className = 'layers';
+        for (let z = 0; z < this.pdim; z++) {
+          const layer = document.createElement('div');
+          layer.className = 'layer';
+          const cap = document.createElement('span');
+          cap.className = 'layer-cap';
+          cap.textContent = '第 ' + (z + 1) + ' 层';
+          const grid = document.createElement('div');
+          grid.className = 'lgrid';
+          grid.style.gridTemplateColumns = 'repeat(' + this.pdim + ', 17px)';
+          for (let r = 0; r < this.pdim; r++) {
+            const y = this.pdim - 1 - r;
+            for (let x = 0; x < this.pdim; x++) {
+              const k = x + ',' + y + ',' + z;
+              const b = document.createElement('button');
+              b.className = 'lcell' + (this.pieces[i].has(k) ? ' on' : '');
+              if (this.pieces[i].has(k)) b.style.background = PIECE_COLORS[i];
+              b.onclick = () => {
+                if (this.pieces[i].has(k)) this.pieces[i].delete(k); else this.pieces[i].add(k);
+                this.solved = false;
+                this.renderAll();
+              };
+              grid.appendChild(b);
+            }
+          }
+          layer.appendChild(cap);
+          layer.appendChild(grid);
+          layers.appendChild(layer);
+        }
+
+        const foot = document.createElement('div');
+        foot.className = 'piece-foot';
+        const clr = document.createElement('button');
+        clr.className = 'ghost';
+        clr.textContent = '清空';
+        clr.onclick = () => { this.pieces[i].clear(); this.solved = false; this.renderAll(); };
+        foot.appendChild(clr);
+
+        card.appendChild(head);
+        card.appendChild(layers);
+        card.appendChild(foot);
+        wrap.appendChild(card);
+      }
+    },
+
+    renderScene() {
+      if (this.solved && this.solution) {
+        const parts = this.solution.map(p => ({ color: PIECE_COLORS[p.piece], cells: p.cells }));
+        this.viewer.setScene({ n: Math.max(this.w, this.d, 2), h: Math.max(this.h, 2), floor: false, parts });
+        return;
+      }
+      const cells = [...this.target].map(k => k.split(',').map(Number));
+      this.viewer.setScene({
+        n: Math.max(this.w, this.d, 2), h: Math.max(this.h, 2), floor: false,
+        parts: cells.length ? [{ color: '#dbe4f3', cells }] : []
+      });
+    },
+
+    solve() {
+      const target = [...this.target].map(k => k.split(',').map(Number));
+      const pieceCells = this.pieces.map(s => [...s].map(k => k.split(',').map(Number)));
+      const res = C.assemble(pieceCells, target);
+      this.solved = false;
+      this.solution = null;
+
+      const st = $('#asm-status');
+      if (!res.ok) {
+        st.className = 'status bad';
+        st.innerHTML = '<span class="big">拼不成</span>' + res.reason;
+        this.solution = null;
+        this.solved = false;
+        this.renderScene();
+        return;
+      }
+      this.solved = true;
+      this.solution = res.placements;
+      st.className = 'status ok';
+      st.innerHTML = '<span class="big">可以拼成 ✓</span>' +
+        '用了 ' + res.placements.length + ' 块，共 ' + target.length + ' 格（搜索 ' + res.nodes + ' 步）';
+      this.renderScene();
+      $('#asm-tip').textContent = '已求出一种摆法：每块用不同颜色标出（搜索 ' + res.nodes + ' 步）';
+    }
+  };
+
+  /* =========================================================
+     ④ 展开图折叠
+     ========================================================= */
+  const NET_PRESETS = {
+    cross: [[2, 2], [2, 1], [2, 0], [3, 1], [1, 1], [0, 1]],
+    t141: [[0, 1], [0, 0], [1, 1], [2, 1], [3, 1], [3, 2]],
+    t231: [[2, 2], [2, 1], [2, 0], [3, 2], [1, 1], [0, 1]],
+    bad: [[0, 1], [1, 1], [2, 1], [0, 0], [1, 0], [0, 2]]
+  };
+
+  const net = {
+    W: 7, H: 7, cells: [], result: null,
+    queryMode: false, picked: [],
+    pairColors: ['#3f7bfa', '#12a594', '#e8912b'],
+
+    init() {
+      this.gridEl = $('#net-grid');
+      this.gridEl.style.gridTemplateColumns = 'repeat(' + this.W + ', 46px)';
+      this.gridEl.addEventListener('click', e => {
+        const b = e.target.closest('.net-cell');
+        if (!b) return;
+        this.onCell(+b.dataset.x, +b.dataset.y);
+      });
+      $('#btn-query').onclick = () => {
+        this.queryMode = !this.queryMode;
+        this.picked = [];
+        $('#btn-query').textContent = this.queryMode ? '退出查询' : '查询两面关系';
+        $('#btn-query').classList.toggle('primary', this.queryMode);
+        $('#btn-query').classList.toggle('ghost', !this.queryMode);
+        this.renderQuery();
+        this.render();
+      };
+      $$('[data-net]').forEach(b => {
+        b.onclick = () => this.loadPreset(b.dataset.net);
+      });
+      this.loadPreset('cross');
+    },
+
+    loadPreset(name) {
+      const src = NET_PRESETS[name] || NET_PRESETS.cross;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [x, y] of src) {
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+      const ox = Math.floor((this.W - (maxX - minX + 1)) / 2) - minX;
+      const oy = Math.floor((this.H - (maxY - minY + 1)) / 2) - minY;
+      this.cells = src.map(([x, y]) => ({ x: x + ox, y: y + oy }));
+      this.picked = [];
+      this.queryMode = false;
+      $('#btn-query').textContent = '查询两面关系';
+      $('#btn-query').classList.remove('primary');
+      $('#btn-query').classList.add('ghost');
+      this.renderQuery();
+      this.compute();
+      this.render();
+    },
+
+    has(x, y) { return this.cells.some(c => c.x === x && c.y === y); },
+
+    onCell(x, y) {
+      if (this.queryMode) {
+        if (!this.has(x, y)) { toast('只能选已经点亮的格子'); return; }
+        const k = x + ',' + y;
+        if (this.picked.includes(k)) {
+          this.picked = this.picked.filter(p => p !== k);
+        } else {
+          if (this.picked.length >= 2) this.picked = [];
+          this.picked.push(k);
+        }
+        this.renderQuery();
+        this.render();
+        return;
+      }
+      if (this.has(x, y)) {
+        this.cells = this.cells.filter(c => !(c.x === x && c.y === y));
+      } else {
+        if (this.cells.length >= 6) { toast('展开图只能是 6 个格子，先去掉一个'); return; }
+        this.cells.push({ x, y });
+      }
+      this.picked = [];
+      this.compute();
+      this.render();
+      this.renderQuery();
+    },
+
+    compute() {
+      this.result = this.cells.length === 6 ? C.foldNet(this.cells) : null;
+      this.numberMap = new Map();
+      this.colorMap = new Map();
+      if (this.cells.length === 6) {
+        const sorted = this.cells.slice().sort((a, b) => (a.y - b.y) || (a.x - b.x));
+        sorted.forEach((c, i) => this.numberMap.set(c.x + ',' + c.y, i + 1));
+        if (this.result && this.result.ok) {
+          this.result.pairs.forEach(([a, b], idx) => {
+            const col = this.pairColors[idx % this.pairColors.length];
+            const A = this.result.items[a], B = this.result.items[b];
+            this.colorMap.set(A.x + ',' + A.y, col);
+            this.colorMap.set(B.x + ',' + B.y, col);
+          });
+        }
+      }
+    },
+
+    render() {
+      const el = this.gridEl;
+      el.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      for (let y = 0; y < this.H; y++) {
+        for (let x = 0; x < this.W; x++) {
+          const k = x + ',' + y;
+          const on = this.has(x, y);
+          const b = document.createElement('button');
+          b.className = 'net-cell' + (on ? ' on' : '');
+          b.dataset.x = x; b.dataset.y = y;
+          if (on) {
+            const col = this.colorMap.get(k) || '#94a6c2';
+            b.style.background = col;
+            b.textContent = this.numberMap.get(k) || '';
+            if (this.picked.includes(k)) b.classList.add('picked');
+          }
+          frag.appendChild(b);
+        }
+      }
+      el.innerHTML = '';
+      el.appendChild(frag);
+      this.renderResult();
+    },
+
+    renderResult() {
+      const box = $('#net-result');
+      const n = this.cells.length;
+      if (n !== 6) {
+        box.innerHTML = '<div class="status"><span class="big">已点 ' + n + ' / 6 格</span>' +
+          '点亮 6 个边相连的格子，就构成一张展开图。</div>';
+        return;
+      }
+      const r = this.result;
+      if (!r || !r.ok) {
+        box.innerHTML = '<div class="status bad"><span class="big">不是有效的展开图</span>' +
+          (r ? r.reason : '') + '</div>';
+        return;
+      }
+      const pairs = r.pairs.map(([a, b]) => {
+        const A = r.items[a], B = r.items[b];
+        const col = this.colorMap.get(A.x + ',' + A.y) || '#3f7bfa';
+        return '<div class="net-pair">' +
+          '<span class="chip" style="background:' + col + '">' + (a + 1) + '</span>' +
+          '<span class="link">↔</span>' +
+          '<span class="chip" style="background:' + col + '">' + (b + 1) + '</span>' +
+          '<span class="hint">相对面</span></div>';
+      }).join('');
+      box.innerHTML = '<div class="status ok"><span class="big">可以折成正方体 ✓</span>' +
+        '同色的两个面折叠后正好相对。</div>' + pairs +
+        '<div class="formula">相邻面：不同色即为相邻（共 12 组）。</div>';
+    },
+
+    renderQuery() {
+      const box = $('#net-query');
+      if (!this.queryMode) {
+        box.innerHTML = '先点「查询两面关系」，再依次点两个已点亮的格子';
+        return;
+      }
+      const nums = this.picked.map(k => this.numberMap.get(k)).filter(Boolean);
+      if (!this.result || !this.result.ok) {
+        box.innerHTML = '需要先构成一张合法的 6 格展开图';
+        return;
+      }
+      if (this.picked.length < 2) {
+        box.innerHTML = '已选：' + (nums.length ? nums.join('、') : '（还没选）') + '，再点一个格子';
+        return;
+      }
+      const [a, b] = this.picked.map(k => this.numberMap.get(k) - 1);
+      const rel = this.result.relation(a, b);
+      const txt = rel === 'opposite' ? '这两个面折叠后<b>相对</b>' : '这两个面折叠后<b>相邻</b>';
+      box.innerHTML = '第 <b>' + (a + 1) + '</b> 面 与 第 <b>' + (b + 1) + '</b> 面：' + txt;
+    }
+  };
+
+  /* =========================================================
+     ⑤ 涂色计数
+     ========================================================= */
+  const paint = {
+    n: 4,
+    init() {
+      $('#paint-minus').onclick = () => { this.n = clamp(this.n - 1, 1, 12); this.render(); };
+      $('#paint-plus').onclick = () => { this.n = clamp(this.n + 1, 1, 12); this.render(); };
+      this.render();
+    },
+    render() {
+      const n = this.n;
+      const r = C.paintedCube(n);
+      $('#paint-n').textContent = String(n);
+      const items = [
+        { k: '三面涂色', v: r.p3, cls: 'c3', f: '8 个顶点' },
+        { k: '两面涂色', v: r.p2, cls: 'c2', f: '12 条棱上，每条 ' + Math.max(0, n - 2) + ' 个' },
+        { k: '一面涂色', v: r.p1, cls: 'c1', f: '6 个面内部，每面 ' + Math.pow(Math.max(0, n - 2), 2) + ' 个' },
+        { k: '零面涂色', v: r.p0, cls: 'c0', f: '内部 ' + Math.max(0, n - 2) + '³ 个' }
+      ];
+      $('#paint-grid').innerHTML = items.map(it =>
+        '<div class="paint-cell ' + it.cls + '"><div class="k">' + it.k + '</div>' +
+        '<div class="v">' + it.v + '</div><div class="f">' + it.f + '</div></div>'
+      ).join('');
+      $('#paint-table').innerHTML = [
+        ['顶点（3 面）', '3', '8', n >= 2 ? '8' : '0（n=1 时只有一个块，涂 6 面）'],
+        ['棱中（2 面）', '2', '12(n−2)', String(r.p2)],
+        ['面心（1 面）', '1', '6(n−2)²', String(r.p1)],
+        ['内部（0 面）', '0', '(n−2)³', String(r.p0)]
+      ].map(row => '<tr><td>' + row[0] + '</td><td>' + row[1] + '</td><td>' + row[2] +
+        '</td><td class="mono">' + row[3] + '</td></tr>').join('');
+      const sum = r.p3 + r.p2 + r.p1 + r.p0;
+      $('#paint-check').innerHTML =
+        '总数校验：' + r.p3 + ' + ' + r.p2 + ' + ' + r.p1 + ' + ' + r.p0 + ' = <b>' + sum +
+        '</b>，与 n³ = <b>' + r.total + '</b> ' + (sum === r.total ? '一致 ✓' : '不一致 ✗') +
+        '；大正方体表面积 = 6n² = <b>' + r.area + '</b> 个单位面。';
+    }
+  };
+
+  /* =========================================================
+     启动
+     ========================================================= */
+  function boot() {
+    stack.init();
+    views.init();
+    asm.init();
+    net.init();
+    paint.init();
+
+    $$('.tab').forEach(b => {
+      b.onclick = () => switchTab(b.dataset.tab);
+    });
+
+    const hash = (location.hash || '').replace('#', '');
+    if (['stack', 'views', 'assemble', 'net', 'paint'].includes(hash)) switchTab(hash);
+    window.addEventListener('hashchange', () => {
+      const h = (location.hash || '').replace('#', '');
+      if (['stack', 'views', 'assemble', 'net', 'paint'].includes(h)) switchTab(h);
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'r' && (e.metaKey || e.ctrlKey) === false && !/input|select|textarea/i.test(document.activeElement.tagName)) {
+        Object.values(VIEWERS).forEach(v => v.resetCam());
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
+</script>
+</body>
+</html>
