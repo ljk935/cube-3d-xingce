@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>立体图推 · 立方体拼接助手</title>
 <style>
-:root {
+﻿:root {
   --bg: #f1f3f7;
   --card: #ffffff;
   --ink: #16202f;
@@ -168,6 +168,13 @@ button { font: inherit; }
 .chk { display: flex; align-items: flex-start; gap: 7px; margin-top: 11px; font-size: 12px; color: var(--ink-2); cursor: pointer; }
 .chk input { margin: 2px 0 0; width: 14px; height: 14px; accent-color: var(--accent); }
 
+.paint-row { display: flex; align-items: center; gap: 8px; margin-top: 11px; }
+.paint-row select {
+  font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+}
+.paint-row[hidden] { display: none; }
+
 /* ---------------- 迷你三视图 ---------------- */
 .views-mini { display: flex; flex-direction: column; gap: 10px; }
 .vm-block { display: flex; flex-direction: column; gap: 5px; }
@@ -240,8 +247,13 @@ button { font: inherit; }
 .asm-bar .row-btns { margin: 0; }
 
 .dims { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--ink-2); }
-.mode-seg { display: flex; width: 100%; margin-bottom: 11px; }
-.mode-seg button { flex: 1; padding: 6px 8px; font-size: 12px; }
+.mode-seg { display: flex; width: 100%; margin-bottom: 8px; }
+.mode-seg button { flex: 1; padding: 6px 6px; font-size: 11.5px; }
+.edit-seg { display: flex; width: 100%; margin-bottom: 11px; }
+.edit-seg button { flex: 1; padding: 5px 8px; font-size: 11.5px; }
+.edit-seg[hidden] { display: none; }
+.lcell.on.occ { background: #f0a04b; border-color: #d98a34; }
+.lcell.on.occ:hover { background: #e89540; }
 .dims label { display: inline-flex; align-items: center; gap: 6px; }
 .dims select {
   font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 8px;
@@ -412,6 +424,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         <div class="seg toolseg" id="seg-tool">
           <button data-tool="add" class="active">放置</button>
           <button data-tool="remove">移除</button>
+          <button data-tool="paint">上色</button>
         </div>
         <button class="ghost" id="btn-reset-cam">重置视角</button>
       </div>
@@ -436,10 +449,23 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       <div class="card">
         <div class="card-h">配色 <span class="hint">点色块换颜色</span></div>
         <div class="swatches" id="stack-colors"></div>
+        <div class="paint-row" id="paint-layer-row" hidden>
+          <label class="hint" for="paint-layer">上色层</label>
+          <select id="paint-layer">
+            <option value="top">顶层（最上面一块）</option>
+            <option value="1">第 1 层</option>
+            <option value="2">第 2 层</option>
+            <option value="3">第 3 层</option>
+            <option value="4">第 4 层</option>
+          </select>
+        </div>
         <label class="chk">
           <input type="checkbox" id="stack-layer-color">
           <span>按层分色（每层一种颜色，数层数更直观）</span>
         </label>
+        <div class="row-btns">
+          <button class="ghost" id="btn-clear-colors">清除单块颜色</button>
+        </div>
       </div>
 
       <div class="card">
@@ -516,7 +542,12 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
           <div class="card-h">目标空间（要拼成的整体） <span class="hint" id="asm-target-vol">0 格</span></div>
           <div class="seg mode-seg" id="seg-asm-mode">
             <button data-mode="exact" class="active">正向 · 拼满整体</button>
-            <button data-mode="partial">逆推 · 在整体里找位置</button>
+            <button data-mode="partial">逆推 · 找部件位置</button>
+            <button data-mode="rest">逆推 · 求剩余空间</button>
+          </div>
+          <div class="seg edit-seg" id="seg-edit-layer" hidden>
+            <button data-layer="target" class="active">编辑：整体</button>
+            <button data-layer="occupied">编辑：已占</button>
           </div>
           <div class="dims">
             <label>宽 X
@@ -1343,11 +1374,15 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
             continue;
           }
           ctx.fillStyle = isHover
-            ? (this.hoverTone === 'remove' ? 'rgba(220,68,68,0.16)' : 'rgba(47,111,237,0.13)')
+            ? (this.hoverTone === 'remove' ? 'rgba(220,68,68,0.16)'
+              : this.hoverTone === 'paint' ? 'rgba(232,145,43,0.18)'
+              : 'rgba(47,111,237,0.13)')
             : '#ffffff';
           ctx.fill();
           ctx.strokeStyle = isHover
-            ? (this.hoverTone === 'remove' ? 'rgba(200,50,50,0.6)' : 'rgba(47,111,237,0.5)')
+            ? (this.hoverTone === 'remove' ? 'rgba(200,50,50,0.6)'
+              : this.hoverTone === 'paint' ? 'rgba(200,120,20,0.6)'
+              : 'rgba(47,111,237,0.5)')
             : 'rgba(24,38,64,0.11)';
           ctx.lineWidth = 1;
           ctx.stroke();
@@ -1520,12 +1555,14 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
 
   const stack = {
     n: 4, maxH: 4, grid: null, viewer: null, color: '#4f83f7', mode: 'add', layerColor: false,
+    cubeColors: new Map(), paintLayer: 'top',
 
     init() {
       this.grid = C.emptyGrid(this.n);
       this.viewer = new Viewer($('#cv-stack'), { interactive: true, hoverable: true });
       VIEWERS.stack = this.viewer;
       this.viewer.onPick = (cell, ev) => {
+        if (this.mode === 'paint') { this.paintAt(cell.x, cell.y); return; }
         if (this.mode === 'remove' || ev.button === 2 || ev.shiftKey) this.removeAt(cell.x, cell.y);
         else this.addAt(cell.x, cell.y);
       };
@@ -1538,13 +1575,21 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         this.layerColor = e.target.checked;
         this.render();
       });
+      $('#paint-layer').addEventListener('change', e => {
+        this.paintLayer = e.target.value === 'top' ? 'top' : parseInt(e.target.value, 10);
+      });
+      $('#btn-clear-colors').onclick = () => {
+        this.cubeColors.clear();
+        this.render();
+        toast('已恢复为统一配色');
+      };
       this.renderSwatches();
       $('#seg-size').addEventListener('click', e => {
         const b = e.target.closest('button[data-n]');
         if (!b) return;
         this.setN(parseInt(b.dataset.n, 10));
       });
-      $('#btn-clear').onclick = () => { this.grid = C.emptyGrid(this.n); this.render(); };
+      $('#btn-clear').onclick = () => { this.grid = C.emptyGrid(this.n); this.cubeColors.clear(); this.render(); };
       $('#btn-demo1').onclick = () => this.demo(1);
       $('#btn-demo2').onclick = () => this.demo(2);
       $('#btn-reset-cam').onclick = () => this.viewer.resetCam();
@@ -1558,16 +1603,20 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
     },
 
     setMode(m) {
-      this.mode = m === 'remove' ? 'remove' : 'add';
+      this.mode = (m === 'remove' || m === 'paint') ? m : 'add';
       $$('#seg-tool button').forEach(b => b.classList.toggle('active', b.dataset.tool === this.mode));
-      this.viewer.hoverTone = this.mode;
+      this.viewer.hoverTone = this.mode === 'remove' ? 'remove' : (this.mode === 'paint' ? 'paint' : 'add');
       this.viewer.hover = null;
+      const paintRow = $('#paint-layer-row');
+      if (paintRow) paintRow.hidden = this.mode !== 'paint';
       this.viewer.draw();
       const tip = $('#stack-tip');
       if (tip) {
         tip.textContent = this.mode === 'remove'
           ? '「移除」：点格子拿掉一块 · 切回「放置」叠加'
-          : '「放置」：点格子叠一块 · 拖动旋转 · 双指 / 滚轮缩放';
+          : this.mode === 'paint'
+            ? '「上色」：选好颜色和上色层，点格子给那一块换色'
+            : '「放置」：点格子叠一块 · 拖动旋转 · 双指 / 滚轮缩放';
       }
     },
 
@@ -1578,6 +1627,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       for (let y = 0; y < Math.min(n, old.length); y++)
         for (let x = 0; x < Math.min(n, old.length); x++) g[y][x] = old[y][x];
       this.n = n; this.grid = g;
+      this.cubeColors.clear();
       $$('#seg-size button').forEach(b => b.classList.toggle('active', +b.dataset.n === n));
       this.viewer.hover = null;
       this.render();
@@ -1594,6 +1644,19 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       const g = this.grid;
       if (!g[y] || g[y][x] === undefined || g[y][x] === 0) return;
       g[y][x]--;
+      this.cubeColors.delete(x + ',' + y + ',' + g[y][x]);
+      this.render();
+    },
+
+    /** 上色：给指定层（或顶层）那一块换颜色 */
+    paintAt(x, y) {
+      const g = this.grid;
+      if (!g[y] || g[y][x] === undefined) return;
+      const h = g[y][x];
+      if (!h) { toast('这一列还没有方块'); return; }
+      const z = this.paintLayer === 'top' ? h - 1 : this.paintLayer - 1;
+      if (z >= h) { toast('这一列只有 ' + h + ' 层，第 ' + (z + 1) + ' 层还是空的'); return; }
+      this.cubeColors.set(x + ',' + y + ',' + z, this.color);
       this.render();
     },
 
@@ -1601,6 +1664,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       const n = 3;
       this.n = n;
       this.grid = C.emptyGrid(n);
+      this.cubeColors.clear();
       if (kind === 1) {
         for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) this.grid[y][x] = y + 1;
       } else {
@@ -1613,19 +1677,20 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
 
     cells() { return C.voxelsFromHeights(this.grid); },
 
-    /** 按当前配色设置生成渲染用的「部件」列表 */
+    /** 按颜色分组生成渲染部件：单块颜色 > 按层分色 > 主题色 */
     parts() {
-      const cells = this.cells();
-      if (!this.layerColor) return [{ color: this.color, cells }];
-      const byLayer = new Map();
-      for (const c of cells) {
-        if (!byLayer.has(c[2])) byLayer.set(c[2], []);
-        byLayer.get(c[2]).push(c);
+      const groups = new Map();
+      const push = (color, c) => {
+        if (!groups.has(color)) groups.set(color, []);
+        groups.get(color).push(c);
+      };
+      for (const c of this.cells()) {
+        const custom = this.cubeColors.get(c[0] + ',' + c[1] + ',' + c[2]);
+        if (custom) push(custom, c);
+        else if (this.layerColor) push(LAYER_COLORS[c[2] % LAYER_COLORS.length], c);
+        else push(this.color, c);
       }
-      return [...byLayer.keys()].sort((a, b) => a - b).map(z => ({
-        color: LAYER_COLORS[z % LAYER_COLORS.length],
-        cells: byLayer.get(z)
-      }));
+      return [...groups.entries()].map(([color, cells]) => ({ color, cells }));
     },
 
     renderSwatches() {
@@ -1881,12 +1946,35 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
     }
   };
 
+  /** 把一组格子分成互不相连的区域，返回区域数 */
+  function countComponents(cells) {
+    const set = new Set(cells.map(c => c.join(',')));
+    const seen = new Set();
+    let comps = 0;
+    for (const key of set) {
+      if (seen.has(key)) continue;
+      comps++;
+      const q = [key];
+      seen.add(key);
+      while (q.length) {
+        const cur = q.pop().split(',').map(Number);
+        for (const d of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) {
+          const k2 = (cur[0] + d[0]) + ',' + (cur[1] + d[1]) + ',' + (cur[2] + d[2]);
+          if (set.has(k2) && !seen.has(k2)) { seen.add(k2); q.push(k2); }
+        }
+      }
+    }
+    return comps;
+  }
+
   /* =========================================================
      ③ 拼接拼合
      ========================================================= */
   const asm = {
     w: 2, d: 2, h: 2,
     target: new Set(),
+    occupied: new Set(),
+    editLayer: 'target',
     pieces: [new Set(), new Set(), new Set(), new Set()],
     pdim: 3,
     colors: PIECE_COLORS.slice(),
@@ -1906,6 +1994,15 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         if (!b || b.dataset.mode === this.mode) return;
         this.setMode(b.dataset.mode);
       });
+      $('#seg-edit-layer').addEventListener('click', e => {
+        const b = e.target.closest('button[data-layer]');
+        if (!b) return;
+        this.editLayer = b.dataset.layer === 'occupied' ? 'occupied' : 'target';
+        $$('#seg-edit-layer button').forEach(x => x.classList.toggle('active', x.dataset.layer === this.editLayer));
+        $('#asm-tip').textContent = this.editLayer === 'occupied'
+          ? '正在标记「已占」：点整体里的格子，标出已经放好的部分'
+          : '正在画「整体」：点格子增删整体的范围（切到「已占」再标已放的部分）';
+      });
       ['w', 'd', 'h'].forEach(k => {
         $('#asm-' + k).addEventListener('change', e => {
           const v = clamp(parseInt(e.target.value, 10) || 1, 1, 4);
@@ -1916,8 +2013,17 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         });
       });
       $('#btn-target-fill').onclick = () => { this.fillTarget(); this.solved = false; this.renderAll(); };
-      $('#btn-target-clear').onclick = () => { this.target.clear(); this.solved = false; this.renderAll(); };
-      $('#btn-asm-demo').onclick = () => (this.mode === 'partial' ? this.demoReverse() : this.demo());
+      $('#btn-target-clear').onclick = () => {
+        this.target.clear();
+        this.occupied.clear();
+        this.solved = false;
+        this.renderAll();
+      };
+      $('#btn-asm-demo').onclick = () => {
+        if (this.mode === 'partial') this.demoReverse();
+        else if (this.mode === 'rest') this.demoRest();
+        else this.demo();
+      };
       $('#btn-solve').onclick = () => this.solve();
       $('#btn-asm-cam').onclick = () => this.viewer.resetCam();
       this.fillTarget();
@@ -1925,14 +2031,21 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
     },
 
     setMode(m) {
-      this.mode = m === 'partial' ? 'partial' : 'exact';
+      this.mode = (m === 'partial' || m === 'rest') ? m : 'exact';
       $$('#seg-asm-mode button').forEach(b => b.classList.toggle('active', b.dataset.mode === this.mode));
       this.solved = false;
       this.solution = null;
       this.remaining = [];
+      const rest = this.mode === 'rest';
+      const editSeg = $('#seg-edit-layer');
+      if (editSeg) editSeg.hidden = !rest;
+      const solveBtn = $('#btn-solve');
+      if (solveBtn) solveBtn.hidden = rest;
       $('#asm-tip').textContent = this.mode === 'partial'
         ? '逆推：左边画出完整整体 + 几块部件，求这些部件在整体里的位置'
-        : '正向：画出要拼成的目标 + 拼块（体积要正好相等），求拼法';
+        : rest
+          ? '逆推：画出整体（可只画一部分作整体，也可以整块），再把「已占」的格子标出来，剩余空间会自动高亮'
+          : '正向：画出要拼成的目标 + 拼块（体积要正好相等），求拼法';
       this.renderAll();
     },
 
@@ -1942,6 +2055,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         for (let y = 0; y < this.d; y++)
           for (let x = 0; x < this.w; x++) s.add(x + ',' + y + ',' + z);
       this.target = s;
+      this.occupied.clear();
     },
 
     trimCells() {
@@ -1950,6 +2064,7 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         return x < this.w && y < this.d && z < this.h;
       };
       this.target = new Set([...this.target].filter(keep));
+      this.occupied = new Set([...this.occupied].filter(keep));
       this.pieces = this.pieces.map(s => new Set([...s].filter(k => {
         const [x, y, z] = k.split(',').map(Number);
         return x < this.pdim && y < this.pdim && z < this.pdim;
@@ -1957,7 +2072,6 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
     },
 
     demo() {
-      if (this.mode !== 'exact') this.setMode('exact');
       this.w = 3; this.d = 2; this.h = 2;
       $('#asm-w').value = 3; $('#asm-d').value = 2; $('#asm-h').value = 2;
       this.fillTarget();
@@ -1984,10 +2098,24 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       toast('逆推示例：整体 3×2×2，找出两块部件的位置');
     },
 
+    demoRest() {
+      this.setMode('rest');
+      this.w = 3; this.d = 2; this.h = 2;
+      $('#asm-w').value = 3; $('#asm-d').value = 2; $('#asm-h').value = 2;
+      this.fillTarget();
+      // 已占：底层左侧 2 格 + 底层中间 1 格
+      this.occupied = new Set(['0,0,0', '0,1,0', '1,0,0']);
+      this.pieces = [new Set(['0,0,0', '0,1,0']), new Set(['0,0,0']), new Set(), new Set()];
+      this.solved = false;
+      this.renderAll();
+      toast('逆推示例：整体 3×2×2，已占 3 格，看剩下的是什么形状');
+    },
+
     renderAll() {
       this.renderTarget();
       this.renderPieces();
       this.renderScene();
+      if (this.mode === 'rest') { this.renderRestStatus(); return; }
       if (!this.solved) {
         $('#asm-tip').textContent = '左侧画出目标与拼块，点「开始求解」';
         $('#asm-status').className = 'status';
@@ -1996,9 +2124,53 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
       }
     },
 
+    /** 逆推·剩余空间：实时算剩余、分区数、与拼块比对 */
+    renderRestStatus() {
+      const st = $('#asm-status');
+      const targetKeys = [...this.target];
+      const occKeys = [...this.occupied].filter(k => this.target.has(k));
+      const remKeys = targetKeys.filter(k => !this.occupied.has(k));
+      const toCells = keys => keys.map(k => k.split(',').map(Number));
+      const occ = toCells(occKeys);
+      const rem = toCells(remKeys);
+
+      st.className = 'status';
+      if (!targetKeys.length) {
+        st.innerHTML = '<span class="big">先画出整体</span>在左边按层点格子，把整体的范围画出来';
+        return;
+      }
+      if (!occKeys.length) {
+        st.innerHTML = '<span class="big">整体 ' + targetKeys.length + ' 格</span>' +
+          '切到「编辑：已占」，把已经放好的那部分点出来，剩余空间会自动高亮';
+        return;
+      }
+      if (!rem.length) {
+        st.className = 'status ok';
+        st.innerHTML = '<span class="big">没有剩余空间 ✓</span>整体 ' + targetKeys.length + ' 格已被占满';
+        return;
+      }
+      const comps = countComponents(rem);
+      const remCanon = C.cellsKey(C.normalize(rem));
+      const matches = [];
+      this.pieces.forEach((set, i) => {
+        if (!set.size || set.size !== rem.length) return;
+        const cells = [...set].map(k => k.split(',').map(Number));
+        if (C.orientations(cells).some(o => C.cellsKey(o) === remCanon)) {
+          matches.push(PIECE_NAMES[i] + ' 块');
+        }
+      });
+      st.className = 'status ok';
+      st.innerHTML = '<span class="big">剩余 ' + rem.length + ' 格</span>' +
+        '整体 ' + targetKeys.length + ' 格 · 已占 ' + occ.length + ' 格 · ' +
+        (comps > 1 ? '剩余部分分成 ' + comps + ' 块互不相连的区域' : '剩余部分连成一体') +
+        (matches.length ? '；形状与 ' + matches.join('、') + ' 相同（旋转可重合）' : '');
+    },
+
     renderTarget() {
       const el = $('#asm-target');
       const cells = this.target;
+      const occ = this.occupied;
+      const rest = this.mode === 'rest';
       el.innerHTML = '';
       for (let z = 0; z < this.h; z++) {
         const layer = document.createElement('div');
@@ -2012,11 +2184,19 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
         for (let r = 0; r < this.d; r++) {
           const y = this.d - 1 - r;
           for (let x = 0; x < this.w; x++) {
+            const k = x + ',' + y + ',' + z;
             const b = document.createElement('button');
-            b.className = 'lcell' + (cells.has(x + ',' + y + ',' + z) ? ' on' : '');
+            b.className = 'lcell' + (cells.has(k) ? ' on' : '') + (rest && occ.has(k) ? ' occ' : '');
             b.onclick = () => {
-              const k = x + ',' + y + ',' + z;
-              if (cells.has(k)) cells.delete(k); else cells.add(k);
+              if (rest && this.editLayer === 'occupied') {
+                if (!cells.has(k)) { toast('先把这一格画进「整体」'); return; }
+                if (occ.has(k)) occ.delete(k); else occ.add(k);
+              } else if (cells.has(k)) {
+                cells.delete(k);
+                occ.delete(k);
+              } else {
+                cells.add(k);
+              }
               this.solved = false;
               this.renderAll();
             };
@@ -2103,17 +2283,28 @@ table.simple td.mono { font-variant-numeric: tabular-nums; }
     },
 
     renderScene() {
+      const n = Math.max(this.w, this.d, 2);
+      const hh = Math.max(this.h, 2);
+      if (this.mode === 'rest') {
+        const occCells = [...this.occupied].filter(k => this.target.has(k)).map(k => k.split(',').map(Number));
+        const remCells = [...this.target].filter(k => !this.occupied.has(k)).map(k => k.split(',').map(Number));
+        const parts = [];
+        if (occCells.length) parts.push({ color: '#4f83f7', cells: occCells });
+        if (remCells.length) parts.push({ color: '#f0a04b', cells: remCells });
+        this.viewer.setScene({ n, h: hh, floor: false, parts });
+        return;
+      }
       if (this.solved && this.solution) {
         const parts = this.solution.map(p => ({ color: this.colors[p.piece], cells: p.cells }));
         if (this.mode === 'partial' && this.remaining && this.remaining.length) {
           parts.push({ color: '#edf1f8', cells: this.remaining });
         }
-        this.viewer.setScene({ n: Math.max(this.w, this.d, 2), h: Math.max(this.h, 2), floor: false, parts });
+        this.viewer.setScene({ n, h: hh, floor: false, parts });
         return;
       }
       const cells = [...this.target].map(k => k.split(',').map(Number));
       this.viewer.setScene({
-        n: Math.max(this.w, this.d, 2), h: Math.max(this.h, 2), floor: false,
+        n, h: hh, floor: false,
         parts: cells.length ? [{ color: '#dbe4f3', cells }] : []
       });
     },
